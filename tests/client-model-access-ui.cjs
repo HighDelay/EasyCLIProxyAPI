@@ -23,18 +23,39 @@ const fs = require('node:fs/promises');
     const edit = number => page.getByRole('button', { name: `Edit authentication key ${number}`, exact: true });
     await edit(1).click();
     let dialog = page.getByRole('dialog');
-    let exclusions = dialog.getByRole('textbox', { name: 'Excluded models', exact: true });
+    let exclusions = dialog.getByRole('textbox', { name: 'Model names and wildcard rules', exact: true });
     await exclusions.waitFor();
-    await exclusions.fill('private-model\npremium-*');
+    const model = id => dialog.getByRole('checkbox', { name: id, exact: true });
+    await model('gpt-5.2-codex').check();
+    await model('claude-sonnet-4-6').check();
+    const provider = dialog.getByRole('combobox', { name: 'Filter by provider', exact: true });
+    await provider.selectOption('codex');
+    assert.equal(await model('claude-sonnet-4-6').count(), 0, 'Provider filter did not narrow the list');
+    await provider.selectOption('');
+    assert.equal(await model('claude-sonnet-4-6').isChecked(), true, 'Provider filtering lost a selection');
+    const search = dialog.getByRole('searchbox', { name: 'Search models or providers', exact: true });
+    await search.fill('claude');
+    await search.press('Enter');
+    assert.equal(await dialog.isVisible(), true, 'Searching submitted the key editor');
+    assert.equal(await model('gpt-5.2-codex').count(), 0, 'Search did not filter models');
+    await search.fill('');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
     await edit(1).click();
     dialog = page.getByRole('dialog');
-    exclusions = dialog.getByRole('textbox', { name: 'Excluded models', exact: true });
+    exclusions = dialog.getByRole('textbox', { name: 'Model names and wildcard rules', exact: true });
     await exclusions.waitFor();
-    await page.waitForFunction(() => document.querySelector('textarea[aria-labelledby="client-model-exclusions-label"]')?.value === 'private-model\npremium-*');
+    await page.waitForFunction(() => document.querySelector('textarea[aria-labelledby="client-model-exclusions-label"]')?.value === 'gpt-5.2-codex\nclaude-sonnet-4-6');
+    await model('gpt-5.2-codex').waitFor();
+    assert.equal(await model('gpt-5.2-codex').isChecked(), true, 'Model selection did not survive save');
+    assert.equal(await model('claude-sonnet-4-6').isChecked(), true, 'Cross-provider selection did not survive save');
+    await exclusions.fill('gpt*\nprivate-model\npremium-*');
+    assert.equal(await model('gpt-5.2-codex').isChecked(), true, 'Wildcard did not select matching models');
+    assert.equal(await model('gpt-5.2-codex').isDisabled(), true, 'Wildcard selection was shown as individually editable');
+    assert.equal(await model('claude-sonnet-4-6').isChecked(), false, 'Custom rules did not update the checklist');
     for (const width of [1280, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
+      await dialog.locator('.client-api-key-dialog-body').evaluate(element => { element.scrollTop = 0; });
       await page.evaluate(() => Promise.all(document.getAnimations()
         .filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime))
         .map(animation => animation.finished.catch(() => {}))));
@@ -44,17 +65,33 @@ const fs = require('node:fs/promises');
       const save = await dialog.getByRole('button', { name: 'Save', exact: true }).boundingBox();
       assert(bounds && save && save.y + save.height <= bounds.y + bounds.height, `Save escapes dialog at ${width}px`);
       await page.screenshot({ path: path.join(output, `edit-key-${width}.png`) });
-      if (width === 1280) await fs.writeFile(path.join(output, 'editor.html'),
-        (await page.content()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ''));
+      if (width === 1280) {
+        const snapshot = await page.evaluate(() => {
+          const root = document.documentElement.cloneNode(true);
+          const inputs = [...document.querySelectorAll('input')];
+          root.querySelectorAll('input').forEach((copy, index) => {
+            copy.toggleAttribute('checked', inputs[index].checked);
+            copy.setAttribute('value', inputs[index].value);
+          });
+          const textareas = [...document.querySelectorAll('textarea')];
+          root.querySelectorAll('textarea').forEach((copy, index) => { copy.textContent = textareas[index].value; });
+          root.querySelectorAll('script').forEach(script => script.remove());
+          return '<!doctype html>' + root.outerHTML;
+        });
+        await fs.writeFile(path.join(output, 'editor.html'), snapshot);
+      }
     }
+    await page.setViewportSize({ width: 640, height: 600 });
+    const compactSave = await dialog.getByRole('button', { name: 'Save', exact: true }).boundingBox();
+    assert(compactSave && compactSave.y + compactSave.height <= 600, 'Save is clipped at the minimum desktop window size');
     await page.setViewportSize({ width: 1280, height: 900 });
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await edit(2).click();
     dialog = page.getByRole('dialog');
-    exclusions = dialog.getByRole('textbox', { name: 'Excluded models', exact: true });
+    exclusions = dialog.getByRole('textbox', { name: 'Model names and wildcard rules', exact: true });
     await page.waitForFunction(() => document.querySelector('textarea[aria-labelledby="client-model-exclusions-label"]')?.disabled === false);
     assert.equal(await exclusions.inputValue(), '', 'Rules leaked to another key');
     assert.deepEqual(errors, []);
-    console.log('Client key exclusions save, reload, stay isolated, and fit 1280/768/390px.');
+    console.log('Models load across providers, search/filter/select/save work, wildcards remain visible, and key policies stay isolated at 1280/768/390px.');
   } finally { await browser.close(); await server.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

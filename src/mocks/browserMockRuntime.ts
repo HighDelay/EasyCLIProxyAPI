@@ -895,7 +895,13 @@ function managementResponse(state: BrowserMockState, payload: JsonObject) {
     if (!file) throw new Error(`Browser Mock credential not found: ${readString(query.name)}`);
     return clone(file);
   }
-  if (method === 'GET' && path === '/credentials/models') return mockModelDefinitions();
+  if (method === 'GET' && path === '/credentials/models') {
+    const file = findAuthFile(state, readString(query.name));
+    const provider = readString(file?.provider ?? file?.type).toLowerCase();
+    const prefix = ({ codex: 'gpt-', claude: 'claude-', gemini: 'gemini-', antigravity: 'gemini-', deepseek: 'deepseek-', xai: 'grok-', kimi: 'kimi-', 'kimi-ai': 'kimi-', devin: 'devin-' } as Record<string, string>)[provider];
+    const catalog = mockModelDefinitions();
+    return { models: prefix ? catalog.models.filter(model => model.id.startsWith(prefix)) : catalog.models };
+  }
   if (method === 'GET' && path.startsWith('/routing/model-definitions/')) return mockModelDefinitions();
   if (method === 'GET' && path === '/config/oauth/excluded-models') {
     return clone(state.oauthExcludedModels);

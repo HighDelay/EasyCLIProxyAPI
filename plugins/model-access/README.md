@@ -10,8 +10,12 @@ map key is the core's authenticated caller scope:
 `SHA256("cli-proxy-api:caller-scope:v1\0" + trimmed_client_key)`.
 Values are lists of case insensitive model names or `*` wildcard patterns.
 Both requested and resolved names are checked, including thinking suffixes.
-Request bodies are omitted from both hooks so large prompts do not change the
-policy decision or incur extra body copies.
+Request hooks omit bodies: decisions depend only on models and caller identity.
+
+The response interceptor filters matching model IDs from client catalogs when
+authentication is supplied in a bearer or API-key header. Administrative catalogs
+remain complete for the GUI's provider picker. Query-only catalog identities are
+not exposed by the current core hook; execution checks still use CallerScope.
 
 Build with `node scripts/build-model-access.mjs` from the repository root. It
 copies the platform library into an ignored resource which the GUI embeds and

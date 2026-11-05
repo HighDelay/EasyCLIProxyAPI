@@ -1,0 +1,29 @@
+.client-model-picker { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 10px; }
+.client-model-picker legend { padding: 0; color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-body); }
+.client-model-picker p { margin: 0; font-size: var(--font-size-caption); line-height: var(--line-height-body); color: var(--color-text-secondary); }
+.client-model-picker-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 160px) 34px; gap: 8px; align-items: center; }
+.client-model-picker-filters .search-control { display: flex; align-items: center; gap: 8px; height: 38px; min-width: 0; padding: 0 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); }
+.client-model-picker-filters .search-control:focus-within { outline: 1px solid var(--color-text-primary); outline-offset: 1px; }
+.client-model-picker-filters input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text-primary); font: inherit; font-size: var(--font-size-body); }
+.client-model-picker-filters svg { flex-shrink: 0; }
+.client-model-picker-filters select { min-width: 0; width: 100%; height: 38px; padding: 0 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text-primary); }
+.client-model-picker-list { min-width: 0; max-height: 210px; min-height: 110px; overflow-y: auto; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.client-model-picker-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 10px; cursor: pointer; }
+.client-model-picker-row + .client-model-picker-row { border-top: 1px solid var(--color-border-default); }
+.client-model-picker-row input[type='checkbox'] { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--color-text-primary); }
+.client-model-picker-name { display: grid; gap: 3px; flex: 1; min-width: 0; color: var(--color-text-primary); font-size: var(--font-size-body); overflow-wrap: anywhere; }
+.client-model-picker-name small, .client-model-picker-provider { font-size: var(--font-size-caption); color: var(--color-text-secondary); }
+.client-model-picker-provider { max-width: 40%; text-align: right; overflow-wrap: anywhere; }
+.client-model-picker-provider small { display: block; margin-top: 3px; font-size: inherit; }
+.client-model-picker-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--font-size-caption); color: var(--color-text-secondary); }
+.client-model-picker-summary .client-model-clear { min-height: 30px; height: 30px; padding: 0 10px; font-size: var(--font-size-caption); }
+.client-model-picker-message { display: flex; gap: 8px; align-items: center; padding: 18px 12px; }
+.client-model-picker p.client-model-picker-error { color: var(--color-danger-text); }
+.client-model-picker-rules { display: grid; gap: 8px; font-size: var(--font-size-caption); color: var(--color-text-secondary); }
+.client-model-picker-rules textarea { min-height: 72px; height: 76px; padding: 8px 10px; resize: vertical; }
+.client-model-picker-rules small { font-size: var(--font-size-caption); line-height: var(--line-height-body); }
+@media (max-width: 540px) {
+  .client-model-picker-filters { grid-template-columns: minmax(0, 1fr) 34px; }
+  .client-model-picker-filters .search-control { grid-column: 1 / -1; }
+  .client-model-picker-list { max-height: 180px; }
+}

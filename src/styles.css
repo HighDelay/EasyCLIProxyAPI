@@ -2478,29 +2478,36 @@ textarea:focus-visible {
 }
 
 .config-dialog.client-api-key-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
   height: auto;
   max-height: calc(100dvh - 40px);
-  grid-template-rows: none;
-  grid-auto-rows: max-content;
+  overflow: hidden;
+}
+
+.client-api-key-dialog-body {
+  min-height: 0;
+  display: grid;
+  gap: 16px;
   overflow-y: auto;
+  padding: 3px;
+  margin: -3px;
 }
 
-.client-api-key-dialog .client-model-exclusions-field {
-  grid-template-rows: auto auto auto;
+.client-api-key-dialog > .config-dialog-heading,
+.client-api-key-dialog > .config-dialog-actions {
+  flex-shrink: 0;
 }
 
-.client-model-exclusions-field textarea {
-  height: 104px;
-  min-height: 80px;
-  padding: 10px 12px;
-  resize: vertical;
+.client-api-key-identity-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 16px;
 }
 
-.client-model-exclusions-field small {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-body);
+@media (max-width: 540px) {
+  .client-api-key-identity-fields { grid-template-columns: minmax(0, 1fr); }
 }
 
 .config-dialog-heading {

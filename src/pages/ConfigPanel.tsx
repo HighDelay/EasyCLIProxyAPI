@@ -1,6 +1,7 @@
 import { Notice } from '../components/Notice';
 import { EmptyState } from '../components/EmptyState';
 import { Switch } from '../components/Switch';
+import { ClientModelExclusions } from '../components/ClientModelExclusions';
 import { onConfigFilesChanged } from '../services/events';
 import { restartCoreProcess } from '../services/coreLifecycle';
 import { openExternalUrl } from '../services/appSettings';
@@ -2478,6 +2479,8 @@ export function ConfigPanelPage() {
             </button>
           </div>
 
+          <div className="client-api-key-dialog-body">
+          <div className="client-api-key-identity-fields">
           <label className="config-dialog-field">
             <span>{t('config.keys.label')}</span>
             <div className="config-secret-input">
@@ -2526,25 +2529,16 @@ export function ConfigPanelPage() {
             />
           </label>
 
-          <label className="config-dialog-field client-model-exclusions-field">
-            <span id="client-model-exclusions-label">{t('config.keys.excludedModels')}</span>
-            <textarea
-              className="config-dialog-text-input"
-              rows={4}
-              value={newApiKeyExcludedModels}
-              disabled={keyMutationBusy || keyPolicyLoading || keyPolicyError}
-              aria-describedby="client-model-exclusions-hint"
-              aria-labelledby="client-model-exclusions-label"
-              placeholder={'private-model\nexpensive-*'}
-              onChange={(event) => { setNewApiKeyExcludedModels(event.currentTarget.value); setFormError(''); }}
-            />
-            <small id="client-model-exclusions-hint">{t('config.keys.excludedModelsHint')}</small>
-          </label>
+          </div>
+          <ClientModelExclusions value={newApiKeyExcludedModels}
+            disabled={keyMutationBusy || keyPolicyLoading || keyPolicyError}
+            onChange={value => { setNewApiKeyExcludedModels(value); setFormError(''); }} />
 
           <div className={`config-form-message ${formError ? 'error' : ''}`}>
             {formError || ' '}
           </div>
           {renderFeedback(keyFeedback)}
+          </div>
 
           <div className="config-dialog-actions">
             <button

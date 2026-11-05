@@ -1,6 +1,7 @@
-﻿use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use regex::Regex;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     ffi::{c_char, c_void, CStr},
@@ -52,6 +53,115 @@ fn denied() -> Value {
         "ResponseBody": STANDARD.encode(br#"{"error":{"message":"This API key is not permitted to use the requested model.","type":"permission_error","code":"model_not_allowed"}}"#)})
 }
 
+fn model_matches(model: &str, patterns: &[Regex]) -> bool {
+    let model = model.trim().strip_prefix("models/").unwrap_or(model.trim());
+    let base = model
+        .strip_suffix(')')
+        .and_then(|name| name.rsplit_once('('))
+        .map_or(model, |(base, _)| base.trim());
+    patterns
+        .iter()
+        .any(|rule| rule.is_match(model) || rule.is_match(base))
+}
+
+fn filter_model_list(request: &Value, rules: &Rules) -> Result<Value, String> {
+    if rules.is_empty()
+        || request
+            .get("Model")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty())
+        || request
+            .get("RequestedModel")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty())
+    {
+        return Ok(json!({}));
+    }
+    // Model-list hooks currently expose the original headers rather than the
+    // authenticated CallerScope. Intersect applicable header policies; inference
+    // authorization continues to use the core's authenticated identity.
+    let mut patterns = Vec::new();
+    if let Some(headers) = request.get("RequestHeaders").and_then(Value::as_object) {
+        for (name, values) in headers {
+            if !["authorization", "x-api-key", "x-goog-api-key"]
+                .iter()
+                .any(|expected| name.eq_ignore_ascii_case(expected))
+            {
+                continue;
+            }
+            for value in values
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                let value = value.trim();
+                let key = if name.eq_ignore_ascii_case("authorization") {
+                    value
+                        .split_once(' ')
+                        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+                        .map_or(value, |(_, key)| key.trim())
+                } else {
+                    value
+                };
+                let scope = format!(
+                    "{:x}",
+                    Sha256::digest(format!("cli-proxy-api:caller-scope:v1\0{key}").as_bytes())
+                );
+                if let Some(policy) = rules.get(&scope) {
+                    patterns.extend(policy.iter().cloned());
+                }
+            }
+        }
+    }
+    if patterns.is_empty() {
+        return Ok(json!({}));
+    }
+    let bytes = STANDARD
+        .decode(request.get("Body").and_then(Value::as_str).unwrap_or(""))
+        .map_err(|_| "Invalid model list body")?;
+    let mut body: Value = serde_json::from_slice(&bytes).map_err(|_| "Invalid model list JSON")?;
+    let mut changed = false;
+    for field in ["data", "models"] {
+        if let Some(items) = body.get_mut(field).and_then(Value::as_array_mut) {
+            let before = items.len();
+            items.retain(|item| {
+                !["id", "name", "slug", "display_name"]
+                    .iter()
+                    .filter_map(|key| item.get(key).and_then(Value::as_str))
+                    .any(|model| model_matches(model, &patterns))
+            });
+            changed |= items.len() != before;
+        }
+    }
+    if !changed {
+        return Ok(json!({}));
+    }
+    if let Some(items) = body.get("data").and_then(Value::as_array) {
+        let first = items
+            .first()
+            .and_then(|item| item.get("id"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let last = items
+            .last()
+            .and_then(|item| item.get("id"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        if let Some(object) = body.as_object_mut() {
+            if object.contains_key("first_id") {
+                object.insert("first_id".into(), first);
+            }
+            if object.contains_key("last_id") {
+                object.insert("last_id".into(), last);
+            }
+        }
+    }
+    Ok(
+        json!({"Body": STANDARD.encode(serde_json::to_vec(&body).map_err(|_| "Invalid model list")?), "ClearHeaders": ["Content-Length"]}),
+    )
+}
+
 fn intercept(request: &Value, rules: &Rules) -> Value {
     let scope = request
         .get("CallerScope")
@@ -74,13 +184,7 @@ fn intercept(request: &Value, rules: &Rules) -> Value {
         .iter()
         .filter_map(|key| request.get(key).and_then(Value::as_str))
     {
-        let model = model.trim();
-        // Thinking suffixes such as model(high) must not bypass an exact rule.
-        let base = model.split_once('(').map_or(model, |(base, _)| base);
-        if patterns
-            .iter()
-            .any(|rule| rule.is_match(model) || rule.is_match(base))
-        {
+        if model_matches(model, patterns) {
             return denied();
         }
     }
@@ -108,14 +212,17 @@ fn dispatch(method: &str, request: Value) -> Result<Value, String> {
             let rules = parse_rules(&bytes)?;
             *RULES.write().unwrap_or_else(|e| e.into_inner()) = rules;
             Ok(
-                json!({"schema_version": 7, "metadata": {"Name": "model-access", "Version": "0.1.0", "Author": "HighDelay", "GitHubRepository": "https://github.com/HighDelay/EasyCLIProxyAPI"},
-                "capabilities": {"request_interceptor": true, "request_interceptor_omit_body_before": true, "request_interceptor_omit_body_after": true}}),
+                json!({"schema_version": 7, "metadata": {"Name": "model-access", "Version": "0.2.0", "Author": "HighDelay", "GitHubRepository": "https://github.com/HighDelay/EasyCLIProxyAPI"},
+                "capabilities": {"request_interceptor": true, "request_interceptor_omit_body_before": true, "request_interceptor_omit_body_after": true, "response_interceptor": true}}),
             )
         }
         "request.intercept_before" | "request.intercept_after" => Ok(intercept(
             &request,
             &RULES.read().unwrap_or_else(|e| e.into_inner()),
         )),
+        "response.intercept_after" => {
+            filter_model_list(&request, &RULES.read().unwrap_or_else(|e| e.into_inner()))
+        }
         "plugin.quiesce" | "plugin.shutdown" => Ok(json!({})),
         _ => Err("Unsupported policy plugin method".into()),
     }
@@ -252,5 +359,51 @@ mod tests {
             intercept(&json!({"CallerScope":"a".repeat(64),"Model":"axb"}), &rules),
             json!({})
         );
+    }
+    #[test]
+    fn model_lists_filter_only_matching_keys_and_preserve_response_metadata() {
+        let scope = format!(
+            "{:x}",
+            Sha256::digest(b"cli-proxy-api:caller-scope:v1\0limited")
+        );
+        let rules = parse_rules(format!("rules:\n  {scope}: ['gpt*']").as_bytes()).unwrap();
+        for (header, key, field, id_field, blocked_id) in [
+            (
+                "Authorization",
+                "Bearer limited",
+                "data",
+                "id",
+                "gpt-locked",
+            ),
+            ("X-Api-Key", "limited", "data", "id", "GPT-Locked"),
+            (
+                "X-Goog-Api-Key",
+                "limited",
+                "models",
+                "name",
+                "models/gpt-locked",
+            ),
+            (
+                "Authorization",
+                "Bearer limited",
+                "models",
+                "slug",
+                "gpt-locked",
+            ),
+        ] {
+            let body = json!({field: [{id_field: blocked_id}, {id_field: "public-model"}], "has_more": false});
+            let request = json!({"Model":"", "RequestHeaders": {header: [key]}, "Body":STANDARD.encode(serde_json::to_vec(&body).unwrap())});
+            let result = filter_model_list(&request, &rules).unwrap();
+            let filtered: Value =
+                serde_json::from_slice(&STANDARD.decode(result["Body"].as_str().unwrap()).unwrap())
+                    .unwrap();
+            assert_eq!(filtered[field].as_array().unwrap().len(), 1);
+            assert_eq!(filtered[field][0][id_field], "public-model");
+            assert_eq!(filtered["has_more"], false);
+        }
+        let allowed = json!({"RequestHeaders":{"Authorization":["Bearer other-key"]},"Body":STANDARD.encode(br#"{"data":[{"id":"gpt-locked"}]}"#)});
+        assert_eq!(filter_model_list(&allowed, &rules).unwrap(), json!({}));
+        let completion = json!({"Model":"public-model", "RequestHeaders":{"Authorization":["Bearer limited"]}, "Body": "not a list"});
+        assert_eq!(filter_model_list(&completion, &rules).unwrap(), json!({}));
     }
 }

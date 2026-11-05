@@ -58,13 +58,13 @@ plugins:
     model-access:
       enabled: true
       rules:
-        {scope}: [private-model, 'premium-*']
+        {scope}: [private-model, 'premium-*', 'gpt*']
 api-keys:
   openai-compatibility:
     - name: local-test-provider
       base-url: http://127.0.0.1:{upstream_port}/v1
       proxy-url: direct
-      models: [{{name: private-model}}, {{name: public-model}}, {{name: premium-one}}, {{name: private-model, alias: friendly-model}}]
+      models: [{{name: private-model}}, {{name: public-model}}, {{name: premium-one}}, {{name: gpt-test}}, {{name: private-model, alias: friendly-model}}]
       keys: [{{api-key: fake-upstream-key, proxy-url: direct}}]
 "#, auth_dir = path_to_string(&core.directory.join("auth")))).unwrap();
     crate::client_model_access::install_for_start(&core.config, &core.directory).unwrap();
@@ -74,9 +74,33 @@ api-keys:
     let plugins: serde_json::Value = core.client.get(format!("{}/v8/management/plugins", core.origin))
         .bearer_auth("isolated-test-secret").send().await.unwrap().json().await.unwrap();
     assert!(plugins["plugins"].as_array().unwrap().iter().any(|entry| entry["id"] == "model-access" && entry["registered"] == true), "{plugins}");
+    for (key, private_visible) in [("limited-client", false), ("other-client", true)] {
+        let payload: serde_json::Value = core.client.get(format!("{}/v1/models", core.origin)).bearer_auth(key)
+            .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+        let entries = payload["data"].as_array().unwrap();
+        assert_eq!(entries.iter().any(|model| model["id"] == "private-model"), private_visible, "{payload}");
+        assert_eq!(entries.iter().any(|model| model["id"] == "premium-one"), private_visible, "{payload}");
+        assert_eq!(entries.iter().any(|model| model["id"] == "gpt-test"), private_visible, "{payload}");
+        assert!(entries.iter().any(|model| model["id"] == "public-model"), "{payload}");
+    }
+    for (path, header, list, name) in [
+        ("/v1/models", "X-Api-Key", "data", "id"),
+        ("/v1beta/models", "X-Goog-Api-Key", "models", "name"),
+    ] {
+        let payload: serde_json::Value = core.client.get(format!("{}{path}", core.origin))
+            .header(header, "limited-client").header("anthropic-version", "2023-06-01")
+            .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+        let entries = payload[list].as_array().unwrap();
+        assert!(!entries.iter().any(|model| [model[name].as_str(), model["display_name"].as_str()].into_iter().flatten().any(|id| id.contains("gpt-test") || id.contains("private-model"))), "{path}: {payload}");
+        assert!(entries.iter().any(|model| [model[name].as_str(), model["display_name"].as_str()].into_iter().flatten().any(|id| id.contains("public-model"))), "{path}: {payload}");
+    }
+    let catalog: serde_json::Value = core.client.get(format!("{}/v8/management/config/api-keys", core.origin))
+        .bearer_auth("isolated-test-secret").send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+    assert!(catalog["openai-compatibility"][0]["models"].as_array().unwrap().iter().any(|model| model["name"] == "private-model"), "Admin picker lost excluded models: {catalog}");
     for (key, model, status) in [
         ("limited-client", "private-model", 403),
         ("limited-client", "premium-one", 403),
+        ("limited-client", "gpt-test", 403),
         ("limited-client", "friendly-model", 403),
         ("limited-client", "public-model", 200),
         ("other-client", "private-model", 200),
