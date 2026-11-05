@@ -1825,6 +1825,7 @@ pub(crate) fn start_core_process_inner(
     }
 
     let config_path = merge_core_config_for_start(&install_dir, gui_config)?;
+    crate::client_model_access::install_for_start(&config_path, &install_dir)?;
     let config_path = path_to_string(&config_path);
     let log_path = core_start_log_path(&install_dir, &gui_config.auth_dir)?;
     let start_once = || {
@@ -1865,6 +1866,10 @@ pub(crate) fn start_core_process_inner(
     let child = start_once().map_err(|failure| failure.message(&log_path))?;
 
     process_state.store_child(child)?;
+    if let Err(error) = crate::client_model_access::verify_for_start(Path::new(&config_path), gui_config) {
+        let _ = stop_core_process_inner(process_state);
+        return Err(error);
+    }
     Ok(())
 }
 

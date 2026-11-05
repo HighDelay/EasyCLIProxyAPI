@@ -13,4 +13,6 @@ agent_docs/
 
 *.log
 *.tmp
+src-tauri/resources/model-access/
+plugins/model-access/target/
 misc/

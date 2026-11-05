@@ -1343,6 +1343,8 @@ export const jaOverrides = {
   'config.keys.hide': 'キーを隠す',
   'config.keys.show': 'キーを表示',
   'config.keys.remark': 'メモ',
+  'config.keys.excludedModels': '除外するモデル',
+  'config.keys.excludedModelsHint': '1行にモデル名または * パターンを指定します。このキーの一致するリクエストは403になります。空欄は全モデルを許可します。変更時は実行中のカーネルを再起動します。',
   'config.keys.remarkPlaceholder': '例：開発環境、田中さんのキー',
   'config.keys.generate': 'キーを生成',
   'config.keys.adding': '追加中',

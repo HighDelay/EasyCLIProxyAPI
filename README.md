@@ -166,6 +166,9 @@ This fork receives desktop app updates from `HighDelay/EasyCLIProxyAPI` and keep
 CLIProxyAPI core updates on the upstream channel. See [maintaining fork updates](docs/fork-updates.md)
 for the one-time migration and the Windows/Linux release workflow.
 
+Client authentication keys support [model exclusion rules](docs/client-model-exclusions.md)
+to deny specific models or wildcard patterns for individual keys.
+
 Behind an enterprise proxy, administrators should install the corporate root CA
 in the OS trust store, not disable TLS validation. See
 [enterprise proxy certificates and regression testing](docs/enterprise-proxy.md).

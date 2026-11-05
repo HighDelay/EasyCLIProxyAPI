@@ -3,7 +3,7 @@
   "productName": "EasyCLIProxyAPI",
   "identifier": "com.cpa.gui",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "node scripts/build-model-access.mjs && bun run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"

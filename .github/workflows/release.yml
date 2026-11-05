@@ -210,8 +210,10 @@ jobs:
           GITCODE_CORE_REPOSITORY: ${{ vars.GITCODE_CORE_REPOSITORY }}
         run: |
           bun install --frozen-lockfile
-          bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts
-          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update::
+          node scripts/build-model-access.mjs
+          cargo test --manifest-path plugins/model-access/Cargo.toml --locked --target-dir src-tauri/target
+          bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts tests/clientModelAccess.test.ts tests/browserMockRuntime.test.ts
+          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: client_model_access::
           bun tauri build --no-bundle
         shell: bash
       - name: Prepare portable directory
@@ -223,6 +225,8 @@ jobs:
           --arch "${{ matrix.arch }}"
           --download true
         shell: bash
+      - name: Verify client model exclusions with bundled core
+        run: node scripts/test-model-access.mjs
       - name: Save Bun packages
         if: ${{ github.event_name != 'pull_request' && steps.bun-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5

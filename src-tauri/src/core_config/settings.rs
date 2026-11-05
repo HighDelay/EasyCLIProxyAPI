@@ -717,6 +717,7 @@ pub(crate) fn apply_gui_managed_settings(
             "enabled",
             serde_norway::Value::Bool(config.plugins_enabled),
         )?;
+        changed |= crate::client_model_access::enable_for_policies(document)?;
         changed |= set_core_yaml_nested_value(
             document,
             "routing",

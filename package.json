@@ -5,7 +5,7 @@
   "packageManager": "bun@1.3.14",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc && vite build",
+    "build": "node scripts/build-model-access.mjs && tsc && vite build",
     "check": "tsc --noEmit",
     "preview": "vite preview",
     "test:ui:windows-titlebar": "node tests/windows-titlebar-ui.cjs",
@@ -15,6 +15,8 @@
     "test:ui:responsive": "node tests/responsive-layout-ui.cjs",
     "test:ui:refinements": "node tests/ui-refinements-ui.cjs",
     "test:ui:settings": "node tests/config-settings-ui.cjs",
+    "test:ui:client-model-access": "node tests/client-model-access-ui.cjs",
+    "test:core:client-model-access": "node scripts/test-model-access.mjs",
     "test:ui:browser-mock": "node tests/browser-mock-ui.cjs",
     "test:ui:agent-environment": "node tests/agent-environment-directory-ui.cjs",
     "test:ui:cli-launch-arguments": "node tests/cli-launch-arguments-ui.cjs",

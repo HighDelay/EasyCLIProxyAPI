@@ -1343,6 +1343,8 @@ export const en: Record<MessageKey, string> = {
   'config.keys.hide': 'Hide key',
   'config.keys.show': 'Show key',
   'config.keys.remark': 'Remark',
+  'config.keys.excludedModels': 'Excluded models',
+  'config.keys.excludedModelsHint': 'One model or * pattern per line. Matching requests return 403 for this key. Leave empty to allow all models. Changing exclusions restarts the running core.',
   'config.keys.remarkPlaceholder': 'For example: Development, Alice’s key',
   'config.keys.generate': 'Generate Key',
   'config.keys.adding': 'Adding',

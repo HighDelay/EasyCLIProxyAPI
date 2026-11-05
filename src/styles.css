@@ -2477,6 +2477,32 @@ textarea:focus-visible {
   width: min(460px, 100%);
 }
 
+.config-dialog.client-api-key-dialog {
+  height: auto;
+  max-height: calc(100dvh - 40px);
+  grid-template-rows: none;
+  grid-auto-rows: max-content;
+  overflow-y: auto;
+}
+
+.client-api-key-dialog .client-model-exclusions-field {
+  grid-template-rows: auto auto auto;
+}
+
+.client-model-exclusions-field textarea {
+  height: 104px;
+  min-height: 80px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.client-model-exclusions-field small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-body);
+}
+
 .config-dialog-heading {
   display: flex;
   align-items: center;

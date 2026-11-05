@@ -13,6 +13,7 @@ mod configuration_watcher;
 mod core_config;
 mod core_runtime;
 mod core_recovery;
+mod client_model_access;
 mod desktop_theme;
 mod instance_lock;
 #[cfg(any(target_os = "linux", test))]
@@ -3027,6 +3028,8 @@ fn main() {
             set_core_request_log,
             add_core_api_key,
             update_core_api_key,
+            client_model_access::get_core_api_key_model_exclusions,
+            client_model_access::set_core_api_key_model_exclusions,
             delete_core_api_key,
             set_core_management_secret_key,
             clear_core_management_secret_key,

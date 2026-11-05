@@ -4,6 +4,7 @@ import { Switch } from '../components/Switch';
 import { onConfigFilesChanged } from '../services/events';
 import { restartCoreProcess } from '../services/coreLifecycle';
 import { openExternalUrl } from '../services/appSettings';
+import { getClientModelExclusions, parseClientModelExclusions, setClientModelExclusions } from '../services/clientModelAccess';
 import {
   getCoreConfigSettings,
   getSoftwareSettings,
@@ -164,6 +165,10 @@ export function ConfigPanelPage() {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [newApiKey, setNewApiKey] = useState('');
   const [newApiKeyRemark, setNewApiKeyRemark] = useState('');
+  const [newApiKeyExcludedModels, setNewApiKeyExcludedModels] = useState('');
+  const [keyPolicyLoading, setKeyPolicyLoading] = useState(false);
+  const [keyPolicyError, setKeyPolicyError] = useState(false);
+  const keyPolicyRequest = useRef(0);
   const [showApiKey, setShowApiKey] = useState(false);
   const [formError, setFormError] = useState('');
   const [managementSecretDraft, setManagementSecretDraft] = useState('');
@@ -530,6 +535,10 @@ export function ConfigPanelPage() {
   };
 
   const openAddDialog = () => {
+    keyPolicyRequest.current += 1;
+    setKeyPolicyError(false);
+    setNewApiKeyExcludedModels('');
+    setKeyPolicyLoading(false);
     keyFeedback.clearNotice();
     setEditingApiKey(null);
     setNewApiKey('');
@@ -539,7 +548,9 @@ export function ConfigPanelPage() {
     setAddDialogOpen(true);
   };
 
-  const openEditDialog = (entry: CoreApiKey) => {
+  const openEditDialog = async (entry: CoreApiKey) => {
+    const request = ++keyPolicyRequest.current;
+    setKeyPolicyError(false);
     keyFeedback.clearNotice();
     setEditingApiKey(entry.apiKey);
     setNewApiKey(entry.apiKey);
@@ -547,12 +558,23 @@ export function ConfigPanelPage() {
     setShowApiKey(false);
     setFormError('');
     setAddDialogOpen(true);
+    setNewApiKeyExcludedModels('');
+    setKeyPolicyLoading(true);
+    try {
+      const models = await getClientModelExclusions(entry.apiKey);
+      if (keyPolicyRequest.current === request) setNewApiKeyExcludedModels(models.join('\n'));
+    } catch (error) {
+      if (keyPolicyRequest.current === request) { setKeyPolicyError(true); setFormError(String(error)); }
+    } finally {
+      if (keyPolicyRequest.current === request) setKeyPolicyLoading(false);
+    }
   };
 
   const closeAddDialog = () => {
     if (busyAction === 'add-key' || busyAction === 'update-key') {
       return;
     }
+    keyPolicyRequest.current += 1;
     setAddDialogOpen(false);
     setEditingApiKey(null);
     setFormError('');
@@ -625,6 +647,7 @@ export function ConfigPanelPage() {
 
   const submitApiKey = async (event: FormEvent) => {
     event.preventDefault();
+    if (keyPolicyLoading || keyPolicyError) return;
     const apiKey = newApiKey.trim();
     if (!apiKey) {
       setFormError(t('config.error.emptyKey'));
@@ -647,9 +670,13 @@ export function ConfigPanelPage() {
     const editing = editingApiKey !== null;
     const saved = await runMutation(
       editing ? 'update-key' : 'add-key',
-      () => editing
-        ? updateCoreApiKey({ originalApiKey: editingApiKey!, apiKey, remark })
-        : addCoreApiKey({ apiKey, remark }),
+      async () => {
+        // Apply policy before a newly created or rotated key can authenticate.
+        await setClientModelExclusions(apiKey, parseClientModelExclusions(newApiKeyExcludedModels));
+        return editing
+          ? updateCoreApiKey({ originalApiKey: editingApiKey!, apiKey, remark })
+          : addCoreApiKey({ apiKey, remark });
+      },
       editing ? t('config.notice.keyUpdated') : t('config.notice.keyAdded'),
     );
     if (saved) {
@@ -2425,6 +2452,7 @@ export function ConfigPanelPage() {
       {addDialogOpen ? (
         <Dialog
           as="form"
+          className="config-dialog client-api-key-dialog"
           labelledBy="add-api-key-title"
           onSubmit={(event) => void submitApiKey(event)}
           onClose={closeAddDialog}
@@ -2498,6 +2526,21 @@ export function ConfigPanelPage() {
             />
           </label>
 
+          <label className="config-dialog-field client-model-exclusions-field">
+            <span id="client-model-exclusions-label">{t('config.keys.excludedModels')}</span>
+            <textarea
+              className="config-dialog-text-input"
+              rows={4}
+              value={newApiKeyExcludedModels}
+              disabled={keyMutationBusy || keyPolicyLoading || keyPolicyError}
+              aria-describedby="client-model-exclusions-hint"
+              aria-labelledby="client-model-exclusions-label"
+              placeholder={'private-model\nexpensive-*'}
+              onChange={(event) => { setNewApiKeyExcludedModels(event.currentTarget.value); setFormError(''); }}
+            />
+            <small id="client-model-exclusions-hint">{t('config.keys.excludedModelsHint')}</small>
+          </label>
+
           <div className={`config-form-message ${formError ? 'error' : ''}`}>
             {formError || ' '}
           </div>
@@ -2512,7 +2555,7 @@ export function ConfigPanelPage() {
             >
               {t('config.keys.generate')}
             </button>
-            <button type="submit" className="primary-button" disabled={keyMutationBusy}>
+            <button type="submit" className="primary-button" disabled={keyMutationBusy || keyPolicyLoading || keyPolicyError}>
               {editingApiKey === null ? <Plus size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
               {keyMutationBusy
                 ? editingApiKey === null ? t('config.keys.adding') : t('common.saving')

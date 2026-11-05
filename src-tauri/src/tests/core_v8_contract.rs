@@ -12,6 +12,127 @@ struct TestCore {
 }
 
 #[tokio::test]
+#[ignore = "requires CPA_V8_TEST_CORE pointing to a v8.0.56+ executable and a built model access plugin"]
+async fn client_model_exclusions_are_enforced_by_real_core() {
+    use sha2::{Digest, Sha256};
+    use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let upstream_port = upstream.local_addr().unwrap().port();
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let observed_calls = Arc::clone(&upstream_calls);
+    let upstream_task = tokio::spawn(async move {
+        loop {
+            let (mut connection, _) = upstream.accept().await.unwrap();
+            observed_calls.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let mut bytes = vec![0; 65536];
+                let _ = connection.read(&mut bytes).await;
+                let body = r#"{"id":"test-completion","object":"chat.completion","model":"public-model","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}"#;
+                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                connection.write_all(response.as_bytes()).await.unwrap();
+            });
+        }
+    });
+    let executable = fs::canonicalize(std::env::var_os("CPA_V8_TEST_CORE").expect("set CPA_V8_TEST_CORE")).unwrap();
+    let directory = agent_test_home("v8-contract-client-exclusions");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let mut core = TestCore {
+        child: None, config: directory.join("config.yaml"), directory, executable,
+        origin: format!("http://127.0.0.1:{port}"),
+        client: reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap(),
+    };
+    let scope = format!("{:x}", Sha256::digest(b"cli-proxy-api:caller-scope:v1\0limited-client"));
+    fs::write(&core.config, format!(r#"config-version: 8
+server: {{host: 127.0.0.1, port: {port}}}
+management: {{secret-key: isolated-test-secret, disable-control-panel: true, disable-auto-update-panel: true}}
+access: {{api-keys: [limited-client, other-client]}}
+oauth: {{auth-dir: {auth_dir:?}}}
+requests: {{proxy-url: 'http://127.0.0.1:1'}}
+plugins:
+  enabled: true
+  dir: plugins
+  configs:
+    model-access:
+      enabled: true
+      rules:
+        {scope}: [private-model, 'premium-*']
+api-keys:
+  openai-compatibility:
+    - name: local-test-provider
+      base-url: http://127.0.0.1:{upstream_port}/v1
+      proxy-url: direct
+      models: [{{name: private-model}}, {{name: public-model}}, {{name: premium-one}}, {{name: private-model, alias: friendly-model}}]
+      keys: [{{api-key: fake-upstream-key, proxy-url: direct}}]
+"#, auth_dir = path_to_string(&core.directory.join("auth")))).unwrap();
+    crate::client_model_access::install_for_start(&core.config, &core.directory).unwrap();
+    core.start().await;
+    let gui = GuiConfigFile { port, host: "127.0.0.1".into(), management_secret_key: "isolated-test-secret".into(), ..GuiConfigFile::default() };
+    crate::client_model_access::verify_for_start(&core.config, &gui).unwrap();
+    let plugins: serde_json::Value = core.client.get(format!("{}/v8/management/plugins", core.origin))
+        .bearer_auth("isolated-test-secret").send().await.unwrap().json().await.unwrap();
+    assert!(plugins["plugins"].as_array().unwrap().iter().any(|entry| entry["id"] == "model-access" && entry["registered"] == true), "{plugins}");
+    for (key, model, status) in [
+        ("limited-client", "private-model", 403),
+        ("limited-client", "premium-one", 403),
+        ("limited-client", "friendly-model", 403),
+        ("limited-client", "public-model", 200),
+        ("other-client", "private-model", 200),
+    ] {
+        let response = core.client.post(format!("{}/v1/chat/completions", core.origin)).bearer_auth(key)
+            .json(&serde_json::json!({"model":model,"messages":[{"role":"user","content":"test"}]}))
+            .send().await.unwrap();
+        let actual = response.status().as_u16();
+        let body = response.text().await.unwrap();
+        assert_eq!(actual, status, "model={model}, body={body}");
+        if status == 403 { assert!(body.contains("model_not_allowed"), "{body}"); }
+    }
+    for (path, body) in [
+        ("/v1/responses", serde_json::json!({"model":"private-model","input":"test","stream":true})),
+        ("/v1/messages", serde_json::json!({"model":"private-model","max_tokens":5,"messages":[{"role":"user","content":"test"}]})),
+        ("/v1beta/models/private-model:generateContent", serde_json::json!({"contents":[{"parts":[{"text":"test"}]}]})),
+    ] {
+        let response = core.client.post(format!("{}{path}", core.origin)).bearer_auth("limited-client")
+            .json(&body).send().await.unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        assert_eq!(status.as_u16(), 403, "{path}: {body}");
+    }
+    let mut websocket = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+    websocket.write_all(format!("GET /v1/responses HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer limited-client\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n").as_bytes()).await.unwrap();
+    let mut handshake = Vec::new();
+    while !handshake.ends_with(b"\r\n\r\n") {
+        let mut byte = [0];
+        tokio::time::timeout(Duration::from_secs(5), websocket.read_exact(&mut byte)).await.unwrap().unwrap();
+        handshake.push(byte[0]);
+        assert!(handshake.len() < 8192);
+    }
+    assert!(String::from_utf8_lossy(&handshake).starts_with("HTTP/1.1 101"), "{}", String::from_utf8_lossy(&handshake));
+    let payload = br#"{"type":"response.create","model":"private-model","input":[{"role":"user","content":"test"}]}"#;
+    assert!(payload.len() < 126);
+    let mask = [1, 2, 3, 4];
+    let mut frame = vec![0x81, 0x80 | payload.len() as u8];
+    frame.extend(mask);
+    frame.extend(payload.iter().enumerate().map(|(index, value)| value ^ mask[index % 4]));
+    websocket.write_all(&frame).await.unwrap();
+    let calls_before_websocket = upstream_calls.load(Ordering::SeqCst);
+    // The core closes a rejected WebSocket turn without an HTTP error body.
+    let mut received = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), websocket.read_to_end(&mut received))
+        .await.expect("Excluded WebSocket request stayed open").unwrap();
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), calls_before_websocket, "Excluded WebSocket model reached upstream");
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 2, "An excluded HTTP request reached upstream");
+    upstream_task.abort();
+    core.stop();
+    let yaml = fs::read_to_string(&core.config).unwrap().replace("enabled: true", "enabled: false");
+    fs::write(&core.config, yaml).unwrap();
+    core.start().await;
+    assert!(crate::client_model_access::verify_for_start(&core.config, &gui).is_err(), "Startup verification accepted disabled enforcement");
+}
+
+#[tokio::test]
 #[ignore = "requires an explicitly prepared isolated CPA_DESKTOP_E2E_CONFIG; never use a production config"]
 async fn desktop_e2e_prepare_isolated_gateway_profile() {
     let path = PathBuf::from(std::env::var_os("CPA_DESKTOP_E2E_CONFIG").expect("set isolated config path"));

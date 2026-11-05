@@ -1328,6 +1328,8 @@ export const zhCN: Record<string, string> = {
   'config.keys.hide': '隐藏密钥',
   'config.keys.show': '显示密钥',
   'config.keys.remark': '备注',
+  'config.keys.excludedModels': '排除模型',
+  'config.keys.excludedModelsHint': '每行填写一个模型名称或含 * 的规则。此密钥的匹配请求将返回 403，留空允许所有模型。修改规则会重启正在运行的内核。',
   'config.keys.remarkPlaceholder': '例如：开发环境、张三的密钥',
   'config.keys.generate': '生成密钥',
   'config.keys.adding': '正在新增',

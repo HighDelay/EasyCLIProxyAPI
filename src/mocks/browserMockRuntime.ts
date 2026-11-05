@@ -1238,6 +1238,7 @@ export function createBrowserMockRuntime(
   onPluginWebview?: (state: PluginWebviewMockState) => void,
 ): BrowserMockRuntime {
   const state = createState(scenario);
+  const clientModelExclusions = new Map<string, string[]>();
   let usageViewPreferences: Record<string, string> = {};
   let agentUsageCleared = false;
   let privacyMode: boolean | null = null;
@@ -1457,6 +1458,11 @@ export function createBrowserMockRuntime(
         state.coreConfig.apiKeys.push({ apiKey: readString(payload.apiKey), remark: readString(payload.remark) });
         return clone(state.coreConfig);
       }
+      case 'get_core_api_key_model_exclusions':
+        return [...(clientModelExclusions.get(readString(payload.apiKey)) ?? [])];
+      case 'set_core_api_key_model_exclusions':
+        clientModelExclusions.set(readString(payload.apiKey), Array.isArray(payload.excludedModels) ? payload.excludedModels.map(String) : []);
+        return null;
       case 'update_core_api_key': {
         const entry = state.coreConfig.apiKeys.find((item) => item.apiKey === payload.originalApiKey);
         if (entry) Object.assign(entry, { apiKey: readString(payload.apiKey), remark: readString(payload.remark) });
