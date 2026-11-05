@@ -1,3 +1,5 @@
+mod credential_import;
+
 #[cfg(target_os = "windows")]
 use super::windows_explorer_executable;
 use super::{
@@ -252,6 +254,7 @@ pub(crate) async fn upload_auth_file(
     if name.is_empty() || !name.to_ascii_lowercase().ends_with(".json") {
         return Err("Credential filename must end with .json".to_string());
     }
+    let data = credential_import::normalize_auth_file(data)?;
 
     let config = gui_config_state.snapshot()?;
     let client = management_http_client()?;

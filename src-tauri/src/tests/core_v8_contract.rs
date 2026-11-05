@@ -155,6 +155,84 @@ impl TestCore {
 
 #[tokio::test]
 #[ignore = "requires CPA_V8_TEST_CORE pointing to a v8 executable"]
+async fn native_codex_auth_import_is_recognized_by_real_core() {
+    use base64::Engine as _;
+    use tauri::Manager;
+
+    let executable = fs::canonicalize(
+        std::env::var_os("CPA_V8_TEST_CORE").expect("set CPA_V8_TEST_CORE"),
+    ).unwrap();
+    let directory = agent_test_home("v8-contract-codex-import");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let mut core = TestCore {
+        child: None, config: directory.join("config.yaml"), directory, executable,
+        origin: format!("http://127.0.0.1:{port}"),
+        client: reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(3)).build().unwrap(),
+    };
+    let gui = GuiConfigFile {
+        port, management_secret_key: "isolated-test-secret".into(),
+        auth_dir: path_to_string(&core.directory.join("auth")),
+        proxy_url: "http://127.0.0.1:1".into(),
+        ..GuiConfigFile::default()
+    };
+    let initial = "config-version: 8\nmanagement: {disable-control-panel: true, disable-auto-update-panel: true}\n";
+    fs::write(&core.config, apply_gui_managed_settings(initial, &gui).unwrap()).unwrap();
+    core.start().await;
+
+    let jwt = |claims: serde_json::Value| format!("e30.{}.test-signature",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(claims.to_string()));
+    let native = serde_json::json!({
+        "auth_mode": "chatgpt", "OPENAI_API_KEY": null,
+        "tokens": {
+            "access_token": jwt(serde_json::json!({"exp": 4102444800_i64})),
+            "refresh_token": "isolated-test-refresh",
+            "id_token": jwt(serde_json::json!({"email": "test@example.invalid",
+                "https://api.openai.com/auth": {"chatgpt_account_id": "isolated-account", "chatgpt_plan_type": "plus"}})),
+            "account_id": "isolated-account"
+        },
+        "last_refresh": chrono::Utc::now().to_rfc3339(),
+    });
+    let endpoint = format!("{}/v8/management/credentials", core.origin);
+    core.client.post(&endpoint).query(&[("name", "auth.json")])
+        .bearer_auth("isolated-test-secret").json(&native)
+        .send().await.unwrap().error_for_status().unwrap();
+    let before: serde_json::Value = core.client.get(&endpoint).query(&[("name", "auth.json")])
+        .bearer_auth("isolated-test-secret").send().await.unwrap()
+        .error_for_status().unwrap().json().await.unwrap();
+    // The file watcher can discard an unrecognized entry after upload.
+    assert!(before["files"].as_array().unwrap().iter()
+        .all(|file| file["provider"] != "codex"));
+
+    let app = tauri::test::mock_app();
+    app.manage(GuiConfigState::new(gui));
+    crate::management_api::upload_auth_file(
+        app.state(), "auth.json".into(), serde_json::to_vec(&native).unwrap(),
+    ).await.unwrap();
+    let mut after = serde_json::Value::Null;
+    for _ in 0..50 {
+        after = core.client.get(&endpoint).query(&[("name", "auth.json")])
+            .bearer_auth("isolated-test-secret").send().await.unwrap()
+            .error_for_status().unwrap().json().await.unwrap();
+        if after["files"][0]["provider"] == "codex" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(after["files"][0]["provider"], "codex");
+    assert_eq!(after["files"][0]["email"], "test@example.invalid");
+    assert_eq!(after["files"][0]["access_token_expires_at"], "2100-01-01T00:00:00Z");
+    let saved: serde_json::Value = core.client.get(format!("{endpoint}/download"))
+        .query(&[("name", "auth.json")]).bearer_auth("isolated-test-secret")
+        .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+    assert_eq!(saved["account_id"], "isolated-account");
+    assert_eq!(saved["refresh_token"], "isolated-test-refresh");
+    assert!(saved.get("tokens").is_none());
+}
+
+#[tokio::test]
+#[ignore = "requires CPA_V8_TEST_CORE pointing to a v8 executable"]
 async fn v8_claude_desktop_and_code_share_persisted_model_routes() {
     check_claude_model_routes(None).await;
 }
