@@ -69,9 +69,9 @@ function downloadSourceLabel(source: VersionDownloadSource, t: ReturnType<typeof
 }
 
 export type MessageType = 'info' | 'success' | 'error';
-export const APP_RELEASE_URL = 'https://github.com/router-for-me/EasyCLIProxyAPI/releases/latest';
-export const APP_PREVIEW_RELEASES_URL = 'https://github.com/router-for-me/EasyCLIProxyAPI/releases?q=preview-&expanded=true';
-export const APP_RELEASE_TAG_BASE_URL = 'https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag';
+export const APP_RELEASE_URL = 'https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest';
+export const APP_PREVIEW_RELEASES_URL = 'https://github.com/HighDelay/EasyCLIProxyAPI/releases?q=preview-&expanded=true';
+export const APP_RELEASE_TAG_BASE_URL = 'https://github.com/HighDelay/EasyCLIProxyAPI/releases/tag';
 
 export function getAppReleaseUrl(channel = 'stable'): string {
   const normalized = channel.trim();

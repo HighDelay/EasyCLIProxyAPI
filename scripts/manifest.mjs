@@ -48,7 +48,7 @@ export async function generatePortableUpdateManifest({
     resolvedDirectory,
     portableUpdateManifestName(normalizedPlatform),
   ));
-  const resolvedRepository = repository ?? 'router-for-me/EasyCLIProxyAPI';
+  const resolvedRepository = repository ?? 'HighDelay/EasyCLIProxyAPI';
   const resolvedGitcodeRepository = String(gitcodeRepository ?? '').trim();
   const normalizedRawTag = String(rawTag ?? '').trim();
   const isOnlyPreview = normalizedRawTag === 'only-preview';

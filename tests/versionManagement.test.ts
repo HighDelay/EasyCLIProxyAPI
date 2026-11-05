@@ -4,6 +4,7 @@ import ts from 'typescript';
 import {
   DEFAULT_VERSION_DOWNLOAD_SOURCE,
   displayAppVersion,
+  getAppReleaseUrl,
 } from '../src/pages/VersionManagementPage';
 import { coreUpdateAvailable } from '../src/coreUpdate';
 import { appUpdateIndicatorState } from '../src/appUpdateModel';
@@ -94,6 +95,12 @@ describe('VersionManagement update triggers', () => {
 });
 
 describe('VersionManagement helper functions', () => {
+  it('opens releases from our fork for stable and preview channels', () => {
+    expect(getAppReleaseUrl()).toBe('https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest');
+    expect(getAppReleaseUrl('preview')).toBe('https://github.com/HighDelay/EasyCLIProxyAPI/releases?q=preview-&expanded=true');
+    expect(getAppReleaseUrl('preview-20261105-1200')).toBe('https://github.com/HighDelay/EasyCLIProxyAPI/releases/tag/preview-20261105-1200');
+  });
+
   it('uses GitHub as the fallback before saved download source settings load', () => {
     expect(DEFAULT_VERSION_DOWNLOAD_SOURCE).toBe('github');
   });

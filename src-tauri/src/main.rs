@@ -122,11 +122,11 @@ const RELEASE_DOWNLOAD_PREFIX: &str =
 const CORE_RELEASES_API_URL: &str =
     "https://api.github.com/repos/router-for-me/CLIProxyAPI/releases?per_page=100";
 #[cfg(windows)]
-const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/router-for-me/EasyCLIProxyAPI/releases/latest/download/portable-update-windows.json";
+const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest/download/portable-update-windows.json";
 #[cfg(target_os = "linux")]
-const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/router-for-me/EasyCLIProxyAPI/releases/latest/download/portable-update-linux.json";
+const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest/download/portable-update-linux.json";
 #[cfg(target_os = "macos")]
-const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/router-for-me/EasyCLIProxyAPI/releases/latest/download/portable-update-darwin-v2.json";
+const APP_UPDATE_MANIFEST_URL: &str = "https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest/download/portable-update-darwin-v2.json";
 #[cfg(windows)]
 const APP_UPDATE_MANIFEST_FILE: &str = "portable-update-windows.json";
 #[cfg(target_os = "linux")]
@@ -134,7 +134,9 @@ const APP_UPDATE_MANIFEST_FILE: &str = "portable-update-linux.json";
 #[cfg(target_os = "macos")]
 const APP_UPDATE_MANIFEST_FILE: &str = "portable-update-darwin-v2.json";
 const APP_RELEASE_DOWNLOAD_PREFIX: &str =
-    "https://github.com/router-for-me/EasyCLIProxyAPI/releases/download/";
+    "https://github.com/HighDelay/EasyCLIProxyAPI/releases/download/";
+const APP_RELEASE_TAG_PREFIX: &str =
+    "https://github.com/HighDelay/EasyCLIProxyAPI/releases/tag/";
 #[cfg(windows)]
 const APP_UPDATE_MANIFEST_NAME: &str = "portable-update-windows.json";
 #[cfg(target_os = "linux")]

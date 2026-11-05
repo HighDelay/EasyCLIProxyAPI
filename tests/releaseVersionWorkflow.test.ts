@@ -52,7 +52,7 @@ describe('release version resolution workflow', () => {
       GITHUB_EVENT_NAME: 'workflow_dispatch',
     });
     expect(outputs.tag).toBe('only-preview');
-    expect(outputs.version).toBe('0.3.6-preview');
+    expect(outputs.version).toMatch(/^0\.3\.6-preview\.\d{8}-\d{4}$/);
   });
 
   it('normalizes bare semver to v-prefixed tag', () => {

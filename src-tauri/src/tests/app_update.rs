@@ -445,7 +445,7 @@ fn portable_update_test_manifest(version: &str) -> PortableUpdateManifest {
         published_at: "2026-07-24T00:00:00.000Z".to_string(),
         release_notes: HashMap::new(),
         release_url: format!(
-            "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/v{version}"
+            "{APP_RELEASE_TAG_PREFIX}v{version}"
         ),
         assets: [
             (
@@ -676,7 +676,7 @@ fn portable_update_manifest_requires_both_matching_github_assets() {
 
     let mut preview_manifest = portable_update_test_manifest("0.3.6-preview");
     preview_manifest.release_url =
-        "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/preview-20261104-1623".to_string();
+        format!("{APP_RELEASE_TAG_PREFIX}preview-20261104-1623");
     for arch in ["amd64", "aarch64"] {
         preview_manifest
             .assets
@@ -687,6 +687,23 @@ fn portable_update_manifest_requires_both_matching_github_assets() {
         );
     }
     assert!(validate_portable_update_manifest(&preview_manifest).is_ok());
+}
+
+#[test]
+fn fork_updates_reject_upstream_releases_and_packages() {
+    let manifest = portable_update_test_manifest("1.2.3");
+    assert!(validate_portable_update_manifest(&manifest).is_ok());
+
+    let mut upstream_release = portable_update_test_manifest("1.2.3");
+    upstream_release.release_url =
+        "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/v1.2.3".into();
+    assert!(validate_portable_update_manifest(&upstream_release).is_err());
+
+    let (platform, _, _) = portable_update_asset_platform().unwrap();
+    let mut upstream_package = portable_update_test_manifest("1.2.3");
+    let asset = upstream_package.assets.get_mut(&format!("{platform}-amd64")).unwrap();
+    asset.url = asset.url.replace("HighDelay/EasyCLIProxyAPI", "router-for-me/EasyCLIProxyAPI");
+    assert!(validate_portable_update_manifest(&upstream_package).is_err());
 }
 
 #[test]

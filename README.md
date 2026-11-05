@@ -154,23 +154,25 @@ Manually renamed files without a session ID in their filename or a database path
 ## Quick Start
 
 1. Download the package for your operating system from
-   [GitHub Releases](https://github.com/router-for-me/EasyCLIProxyAPI/releases/latest).
-2. Extract the Windows or Linux archive, or open the macOS DMG.
+   [GitHub Releases](https://github.com/HighDelay/EasyCLIProxyAPI/releases/latest).
+2. Extract the Windows or Linux archive.
 3. Launch EasyCLIProxyAPI.
 4. Open **Version Management** and install the bundled or latest CLIProxyAPI core.
 5. Return to **Home**, start the core, then copy the required local endpoint or configure an OAuth/API provider.
 
 ## Upgrading
 
+This fork receives desktop app updates from `HighDelay/EasyCLIProxyAPI` and keeps
+CLIProxyAPI core updates on the upstream channel. See [maintaining fork updates](docs/fork-updates.md)
+for the one-time migration and the Windows/Linux release workflow.
+
 Behind an enterprise proxy, administrators should install the corporate root CA
 in the OS trust store, not disable TLS validation. See
 [enterprise proxy certificates and regression testing](docs/enterprise-proxy.md).
 
-Every Windows release publishes both the complete ZIP and the legacy `update` ZIP. This keeps in-app updates available to older clients that have not migrated yet, while newer clients use the complete package so the bundled core can be updated too.
+Fork releases publish complete Windows ZIP and Linux TAR.GZ packages, with update manifests containing package sizes and SHA-256 hashes.
 
-Current Windows, Linux, and macOS release packages support in-app automatic updates. Linux replaces the portable application files while preserving runtime data, and macOS replaces the signed application bundle. Each platform waits for the new version to confirm a successful launch and rolls back automatically if startup fails. The installation directory must be writable by the current user.
-
-Existing Linux and macOS installations need one manual upgrade to a release that includes the cross-platform auto-update marker. In-app updates are available after that release has been launched once.
+Windows and Linux release packages support in-app updates while preserving runtime data. Each platform waits for the new version to confirm a successful launch and rolls back automatically if startup fails. The installation directory must be writable by the current user.
 
 If you are running v0.2.5 or earlier, perform one manual migration: exit EasyCLIProxyAPI, download the latest complete Windows ZIP for your architecture, then copy the contents of its top-level directory over the existing installation directory. Do not delete the existing directory first; user data such as `config.toml`, `oauth`, and `cpa-core/config.yaml` will remain in place. After launching the new version, later releases can use in-app automatic updates.
 
@@ -181,7 +183,6 @@ GitHub Actions builds the following release packages:
 | Operating System | Architecture | Package |
 | --- | --- | --- |
 | Windows | amd64, aarch64 | ZIP |
-| macOS | amd64, aarch64 | DMG |
 | Linux | amd64, aarch64 | TAR.GZ |
 
 ## Related Project

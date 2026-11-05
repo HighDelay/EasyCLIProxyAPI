@@ -140,16 +140,6 @@ jobs:
             display_os: Linux
             arch: aarch64
             suffix: tar.gz
-          - runner: macos-15-intel
-            os: darwin
-            display_os: Darwin
-            arch: amd64
-            suffix: dmg
-          - runner: macos-15
-            os: darwin
-            display_os: Darwin
-            arch: aarch64
-            suffix: dmg
           - runner: windows-2025
             os: windows
             display_os: Windows
@@ -220,6 +210,8 @@ jobs:
           GITCODE_CORE_REPOSITORY: ${{ vars.GITCODE_CORE_REPOSITORY }}
         run: |
           bun install --frozen-lockfile
+          bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts
+          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update::
           bun tauri build --no-bundle
         shell: bash
       - name: Prepare portable directory
@@ -466,7 +458,7 @@ jobs:
             echo "Skipping portable update manifests for non-semver release tag: $RELEASE_TAG"
             exit 0
           fi
-          for platform in windows linux darwin; do
+          for platform in windows linux; do
             node scripts/manifest.mjs \
               --directory artifacts \
               --platform "$platform" \

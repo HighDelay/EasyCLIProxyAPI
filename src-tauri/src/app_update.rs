@@ -642,6 +642,7 @@ pub(crate) fn validate_portable_update_manifest_for_repository(
         || release_url.password().is_some()
         || release_url.query().is_some()
         || release_url.fragment().is_some()
+        || !manifest.release_url.starts_with(APP_RELEASE_TAG_PREFIX)
     {
         return Err("Untrusted application update release URL".to_string());
     }
@@ -933,7 +934,7 @@ pub(crate) fn normalize_update_channel(channel: &str) -> String {
 
 fn preview_manifest_url(tag: &str) -> String {
     format!(
-        "https://github.com/router-for-me/EasyCLIProxyAPI/releases/download/{tag}/{}",
+        "{APP_RELEASE_DOWNLOAD_PREFIX}{tag}/{}",
         APP_UPDATE_MANIFEST_FILE
     )
 }
@@ -3033,9 +3034,9 @@ pub(crate) fn portable_update_ack_argument() -> Option<PathBuf> {
 }
 
 const GUI_RELEASES_API_URL: &str =
-    "https://api.github.com/repos/router-for-me/EasyCLIProxyAPI/releases?per_page=100";
+    "https://api.github.com/repos/HighDelay/EasyCLIProxyAPI/releases?per_page=100";
 const GUI_RELEASES_ATOM_URL: &str =
-    "https://github.com/router-for-me/EasyCLIProxyAPI/releases.atom";
+    "https://github.com/HighDelay/EasyCLIProxyAPI/releases.atom";
 
 /// Lists selectable update channels: the two built-ins plus one entry per
 /// `preview-*` release tag. Network failures fall back to the built-ins so the

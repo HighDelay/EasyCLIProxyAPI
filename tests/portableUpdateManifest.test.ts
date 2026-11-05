@@ -22,6 +22,27 @@ test('macOS uses a new primary channel and keeps the legacy manifest alias', () 
   expect(portableUpdateManifestNames('linux')).toEqual(['portable-update-linux.json']);
 });
 
+test.each([
+  ['windows', 'Windows', 'zip'],
+  ['linux', 'Linux', 'tar.gz'],
+] as const)('%s updates default to our fork and hash both architecture packages', async (platform, display, suffix) => {
+  const directory = await mkdtemp(join(tmpdir(), 'easycli-fork-manifest-'));
+  try {
+    for (const arch of ['amd64', 'aarch64']) {
+      await writeFile(join(directory, `EasyCLIProxyAPI-v1.2.3-${display}-${arch}.${suffix}`), `${platform}-${arch}`);
+    }
+    const manifest = await generatePortableUpdateManifest({ directory, platform, tag: 'v1.2.3' });
+    expect(manifest.releaseUrl).toBe('https://github.com/HighDelay/EasyCLIProxyAPI/releases/tag/v1.2.3');
+    for (const arch of ['amd64', 'aarch64']) {
+      const asset = manifest.assets[`${platform}-${arch}`];
+      expect(asset.url).toBe(`https://github.com/HighDelay/EasyCLIProxyAPI/releases/download/v1.2.3/EasyCLIProxyAPI-v1.2.3-${display}-${arch}.${suffix}`);
+      expect(asset.sha256).toBe(createHash('sha256').update(`${platform}-${arch}`).digest('hex'));
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('macOS manifest CLI publishes both update channels', async () => {
   const root = await mkdtemp(join(tmpdir(), 'easycli-darwin-manifest-cli-'));
   try {
