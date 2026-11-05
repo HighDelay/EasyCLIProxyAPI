@@ -8,9 +8,11 @@ replace our custom changes through the updater.
 ## Install the fork updater once
 
 The earlier Codex test build still follows the upstream desktop updater. Close
-the app and replace its `EasyCLIProxyAPI.exe` with the new fork-updater build,
-or copy the contents of a fork release over the existing installation. Keep
-`config.toml`, `oauth`, and `cpa-core/config.yaml` in place. Do not remove the
+the app and copy the new executable **and `portable-app.json`** into the existing
+installation, or copy the contents of a fork release over it. On Windows the
+executable is `EasyCLIProxyAPI.exe`; on Linux it is `EasyCLIProxyAPI`. The portable
+marker must match the compiled app version for in-app updates to be enabled.
+Keep `config.toml`, `oauth`, and `cpa-core/config.yaml` in place. Do not remove the
 installation directory first.
 
 After that migration, **Version Management → Install Now** installs releases
