@@ -16,3 +16,4 @@ policy decision or incur extra body copies.
 Build with `node scripts/build-model-access.mjs` from the repository root. It
 copies the platform library into an ignored resource which the GUI embeds and
 installs on core startup. See [usage and verification](../../docs/client-model-exclusions.md).
+Windows builds link the Visual C++ runtime statically, matching the portable GUI.
