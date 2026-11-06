@@ -103,7 +103,8 @@ export const authFileSettingsFromPayload = (payload: unknown): AuthFileSettingsD
     proxy_url: text(read('proxy_url', 'proxy-url')),
     priority: text(metadata.priority),
     weight: text(metadata.weight),
-    disable_cooling: override(read('disable_cooling', 'disable-cooling'), true),
+    disable_cooling: metadata._easycli_cooldown_managed === true && metadata.disable_cooling === true
+      ? '' : override(read('disable_cooling', 'disable-cooling'), true),
     websockets: override(read('websockets', 'websocket')),
     excluded_models: authFileExcludedRulesFromPayload(metadata).join('\n'),
     headers: JSON.stringify(headers, null, 2),

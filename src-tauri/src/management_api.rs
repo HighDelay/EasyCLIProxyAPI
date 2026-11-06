@@ -187,7 +187,19 @@ async fn management_request_inner(
     if let Some(query) = request.query {
         builder = builder.query(&query);
     }
-    if let Some(body) = request.body {
+    let _cooldown_guard = if path.trim_start_matches('/') == "credentials/fields"
+        && request.body.as_ref().is_some_and(|body| body.get("disable_cooling").is_some() || body.get("disable-cooling").is_some()) {
+        Some(crate::cooldown_policy::lock_credential_updates().await)
+    } else { None };
+    if let Some(mut body) = request.body {
+        if path.trim_start_matches('/') == "credentials/fields" {
+            if let Some(fields) = body.as_object_mut() {
+                if fields.contains_key("disable_cooling") || fields.contains_key("disable-cooling") {
+                    // A manual account override takes precedence over provider defaults.
+                    fields.insert("_easycli_cooldown_managed".into(), serde_json::Value::Null);
+                }
+            }
+        }
         builder = management_request_body(builder, path, body)?;
     }
 
@@ -255,6 +267,7 @@ pub(crate) async fn upload_auth_file(
         return Err("Credential filename must end with .json".to_string());
     }
     let data = credential_import::normalize_auth_file(data)?;
+    let data = crate::cooldown_policy::prepare_import(data)?;
 
     let config = gui_config_state.snapshot()?;
     let client = management_http_client()?;

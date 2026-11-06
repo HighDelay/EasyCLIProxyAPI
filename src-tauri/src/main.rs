@@ -14,6 +14,7 @@ mod core_config;
 mod core_runtime;
 mod core_recovery;
 mod client_model_access;
+mod cooldown_policy;
 mod desktop_theme;
 mod instance_lock;
 #[cfg(any(target_os = "linux", test))]
@@ -184,7 +185,7 @@ const DEFAULT_REQUEST_RETRY: u32 = 3;
 const DEFAULT_MAX_RETRY_CREDENTIALS: u32 = 0;
 const DEFAULT_MAX_RETRY_INTERVAL: i64 = 30;
 const DEFAULT_STREAMING_BOOTSTRAP_RETRIES: u32 = 0;
-const DEFAULT_DISABLE_COOLING: bool = true;
+const DEFAULT_DISABLE_COOLING: bool = false;
 const DEFAULT_LOGS_MAX_TOTAL_SIZE_MB: u32 = 0;
 const DEFAULT_ERROR_LOGS_MAX_FILES: u32 = 10;
 const DEFAULT_REDIS_USAGE_QUEUE_RETENTION_SECONDS: u32 = 60;
@@ -2772,6 +2773,7 @@ fn main() {
             #[cfg(target_os = "windows")]
             setup_windows_tray(app)?;
 
+            cooldown_policy::start_reconciler(app.handle().clone());
             if let Err(error) = configure_initial_main_window(app.handle(), start_hidden) {
                 eprintln!("Failed to configure startup window state: {error}");
             }
@@ -3028,6 +3030,8 @@ fn main() {
             set_core_request_log,
             add_core_api_key,
             update_core_api_key,
+            cooldown_policy::get_cooldown_policy,
+            cooldown_policy::set_cooldown_policy,
             client_model_access::get_core_api_key_model_exclusions,
             client_model_access::set_core_api_key_model_exclusions,
             delete_core_api_key,

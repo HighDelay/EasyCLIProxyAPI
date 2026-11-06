@@ -1,0 +1,14 @@
+.cooldown-policy { display: grid; gap: 14px; }
+.cooldown-policy[hidden] { display: none; }
+.cooldown-policy-actions { display: flex; align-items: center; gap: 8px; }
+.cooldown-policy-hint { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-caption); line-height: var(--line-height-body); }
+.cooldown-policy-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.cooldown-policy-field { display: grid; align-content: start; gap: 8px; min-width: 0; color: var(--color-text-secondary); font-size: var(--font-size-body); }
+.cooldown-policy-field .config-network-input { max-width: none; width: 100%; min-width: 0; }
+.cooldown-policy-field small { font-size: var(--font-size-caption); line-height: var(--line-height-body); }
+.cooldown-provider-list { margin: 0; padding: 12px; min-width: 0; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
+.cooldown-provider-list legend { padding: 0 6px; font-size: var(--font-size-body); color: var(--color-text-secondary); }
+.cooldown-provider-list > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 12px 18px; }
+.cooldown-provider-list label { min-width: 0; overflow-wrap: anywhere; }
+.cooldown-duration { max-width: 360px; }
+@media (max-width: 600px) { .cooldown-policy-fields { grid-template-columns: minmax(0, 1fr); } }

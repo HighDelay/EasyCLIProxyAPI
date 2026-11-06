@@ -29,6 +29,7 @@ on:
         type: boolean
   push:
     branches:
+      - main
       - preview
     tags:
       - 'v*'
@@ -153,7 +154,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
-      PACKAGE_RELEASE: ${{ inputs.preview || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' || github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'preview') }}
+      PACKAGE_RELEASE: ${{ inputs.preview || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' || github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'preview')) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -213,7 +214,7 @@ jobs:
           node scripts/build-model-access.mjs
           cargo test --manifest-path plugins/model-access/Cargo.toml --locked --target-dir src-tauri/target
           bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts tests/clientModelAccess.test.ts tests/browserMockRuntime.test.ts
-          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: client_model_access::
+          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: tests::core_config:: client_model_access:: cooldown_policy::
           bun tauri build --no-bundle
         shell: bash
       - name: Prepare portable directory
@@ -225,7 +226,7 @@ jobs:
           --arch "${{ matrix.arch }}"
           --download true
         shell: bash
-      - name: Verify client model exclusions with bundled core
+      - name: Verify model exclusions and Antigravity cooldowns with bundled core
         run: node scripts/test-model-access.mjs
       - name: Save Bun packages
         if: ${{ github.event_name != 'pull_request' && steps.bun-cache.outputs.cache-hit != 'true' }}

@@ -50,8 +50,9 @@ try {
     executable = await findCore(temporary);
     if (!executable) throw new Error(`Core executable missing from ${asset}`);
   }
-  run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--',
-    'tests::core_v8_contract::client_model_exclusions_are_enforced_by_real_core', '--ignored'],
+  const filters = ['antigravity_quota_and_transient_cooldowns_follow_provider_policy'];
+  if (!process.argv.includes('--cooldown-only')) filters.push('tests::core_v8_contract::client_model_exclusions_are_enforced_by_real_core');
+  run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--', ...filters, '--ignored'],
   { ...process.env, CPA_V8_TEST_CORE: resolve(executable) });
 } finally {
   if (temporary && dirname(resolve(temporary)) === resolve(tmpdir())

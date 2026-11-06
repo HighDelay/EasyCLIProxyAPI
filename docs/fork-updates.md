@@ -31,12 +31,21 @@ git merge upstream/main
 ```
 
 Resolve any conflicts while retaining the Codex import conversion, the fork's
-application update URLs, and the Windows/Linux release matrix. Commit the merge
+application update URLs, model access and cooldown policies, and the Windows/Linux release matrix. Commit the merge
 and push `main` to `origin`. Use a merge to retain the fork's commits; GitHub's
 **Discard commits** operation would remove these changes.
 
-The release workflow runs the import and updater regression tests before
-building packages. Review upstream changes before merging them; a successful
+Every push to this fork's `main`, including an upstream merge, automatically
+builds portable Windows and Linux packages for x64 and ARM64. Download them
+from the successful **Build portable releases** run under **Artifacts**. Branch
+builds do not publish an updater release; use the publishing steps below when
+you want to distribute an update.
+
+The workflow runs the import, updater, model-access, and cooldown regression
+tests. It also runs the bundled core against local fake providers to check
+model exclusion enforcement and the supplied Antigravity quota response,
+including failover, reset delay, temporary errors, persistence, and provider
+selection. These checks run on all four platforms. Review upstream changes before merging them; a successful
 build alone cannot establish that every custom behavior was retained.
 
 ## Publish an update

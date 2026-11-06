@@ -1245,6 +1245,7 @@ export function createBrowserMockRuntime(
 ): BrowserMockRuntime {
   const state = createState(scenario);
   const clientModelExclusions = new Map<string, string[]>();
+  let cooldownPolicy = { providers: null as string[] | null, transientSeconds: -1, persist: false };
   let usageViewPreferences: Record<string, string> = {};
   let agentUsageCleared = false;
   let privacyMode: boolean | null = null;
@@ -1464,6 +1465,20 @@ export function createBrowserMockRuntime(
         state.coreConfig.apiKeys.push({ apiKey: readString(payload.apiKey), remark: readString(payload.remark) });
         return clone(state.coreConfig);
       }
+      case 'get_cooldown_policy': {
+        const seconds = readTemplatePath(state.extendedConfig, ['routing', 'cooldown', 'transient-error-cooldown-seconds']);
+        const persist = readTemplatePath(state.extendedConfig, ['routing', 'cooldown', 'save-cooldown-status']);
+        if (seconds.exists) cooldownPolicy.transientSeconds = Number(seconds.value);
+        if (persist.exists) cooldownPolicy.persist = Boolean(persist.value);
+        return { policy: clone(cooldownPolicy), availableProviders: ['antigravity', 'claude', 'codex', 'gemini', 'gemini-cli', 'interactions', 'meta', 'vertex', 'xai'], warning: null };
+      }
+      case 'set_cooldown_policy':
+        cooldownPolicy = clone(payload.policy) as typeof cooldownPolicy;
+        state.extendedConfig = { ...state.extendedConfig, routing: { ...asObject(state.extendedConfig.routing),
+          cooldown: { ...asObject(asObject(state.extendedConfig.routing).cooldown),
+            'transient-error-cooldown-seconds': cooldownPolicy.transientSeconds, 'save-cooldown-status': cooldownPolicy.persist } } };
+        emit('config-files-changed', { paths: ['cpa-core/config.yaml'], errors: [] });
+        return null;
       case 'get_core_api_key_model_exclusions':
         return [...(clientModelExclusions.get(readString(payload.apiKey)) ?? [])];
       case 'set_core_api_key_model_exclusions':

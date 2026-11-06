@@ -1734,28 +1734,41 @@ fn core_config_reads_retry_fields_and_uses_core_defaults() {
 
 #[test]
 fn cooling_defaults_only_fill_missing_settings() {
-    assert!(GuiConfigFile::default().disable_cooling);
-    let gui: GuiConfigFile = toml::from_str("disable-cooling = false").unwrap();
-    assert!(!gui.disable_cooling);
+    assert!(!GuiConfigFile::default().disable_cooling);
+    let missing: GuiConfigFile = toml::from_str("").unwrap();
+    assert!(!missing.disable_cooling);
+    for disabled in [false, true] {
+        let gui: GuiConfigFile = toml::from_str(&format!("disable-cooling = {disabled}")).unwrap();
+        assert_eq!(gui.disable_cooling, disabled);
+    }
     let template = "config-version: 8\nserver: {port: 8317}\nrouting:\n  cooldown: {disable-cooling: false}\n";
-    for (current, expected) in [
-        (None, true),
-        (Some("port: 8317\n"), true),
-        (Some("config-version: 8\nrouting: {strategy: round-robin}\n"), true),
-        (Some("disable-cooling: false\n"), false),
-        (Some("disable-cooling: true\n"), true),
-        (Some("config-version: 8\nrouting: {cooldown: {disable-cooling: false}}\n"), false),
-        (Some("config-version: 8\nrouting: {cooldown: {disable-cooling: true}}\n"), true),
+    for (current, gui_disabled, expected) in [
+        (None, false, false),
+        (None, true, true),
+        (Some("port: 8317\n"), false, false),
+        (Some("port: 8317\n"), true, true),
+        (Some("config-version: 8\nrouting: {strategy: round-robin}\n"), false, false),
+        (Some("config-version: 8\nrouting: {strategy: round-robin}\n"), true, true),
+        (Some("disable-cooling: false\n"), true, false),
+        (Some("disable-cooling: true\n"), false, true),
+        (Some("config-version: 8\nrouting: {cooldown: {disable-cooling: false}}\n"), true, false),
+        (Some("config-version: 8\nrouting: {cooldown: {disable-cooling: true}}\n"), false, true),
     ] {
-        let config = GuiConfigFile { disable_cooling: !expected, ..GuiConfigFile::default() };
-        // A new file uses the GUI's explicit choice; existing files use their
-        // own choice, or the default when the field is absent.
-        let config = if current.is_none() { GuiConfigFile::default() } else { config };
+        let config = GuiConfigFile { disable_cooling: gui_disabled, ..GuiConfigFile::default() };
         let rendered = merge_core_config_yaml(template, current, &config).unwrap();
         let value = serde_norway::from_str(&rendered).unwrap();
         assert_eq!(core_config_settings_from_value(&value).unwrap().disable_cooling, expected);
+        if current.is_none() {
+            assert_eq!(value["routing"]["cooldown"]["transient-error-cooldown-seconds"].as_i64(), Some(-1));
+        }
         let second = merge_core_config_yaml(template, Some(&rendered), &config).unwrap();
         assert_eq!(second, rendered);
+    }
+    for seconds in [-1, 0, 12] {
+        let current = format!("config-version: 8\nrouting: {{cooldown: {{transient-error-cooldown-seconds: {seconds}}}}}\n");
+        let rendered = merge_core_config_yaml(template, Some(&current), &GuiConfigFile::default()).unwrap();
+        let document: serde_norway::Value = serde_norway::from_str(&rendered).unwrap();
+        assert_eq!(document["routing"]["cooldown"]["transient-error-cooldown-seconds"].as_i64(), Some(seconds));
     }
 }
 

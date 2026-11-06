@@ -1,0 +1,24 @@
+{
+  "error": {
+    "code": 429,
+    "message": "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 4h45m15s.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "QUOTA_EXHAUSTED",
+        "domain": "cloudcode-pa.googleapis.com",
+        "metadata": {
+          "model": "claude-opus-5-5-high",
+          "quotaResetDelay": "4h45m15.860839642s",
+          "quotaResetTimeStamp": "2026-11-06T12:16:53Z",
+          "uiMessage": "true"
+        }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+        "retryDelay": "17115.860839642s"
+      }
+    ]
+  }
+}

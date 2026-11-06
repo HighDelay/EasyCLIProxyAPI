@@ -732,7 +732,8 @@ const draftFromRow = (row: ProviderRow): ProviderDraft => {
     excludedModelsText: Array.isArray(row.record['excluded-models'])
       ? row.record['excluded-models'].map(String).filter((model) => model.trim() !== '*').join('\n')
       : '',
-    disableCooling: typeof row.record['disable-cooling'] === 'boolean' ? row.record['disable-cooling'] : null,
+    disableCooling: row.record._easycli_cooldown_managed === true && row.record['disable-cooling'] === true
+      ? null : typeof row.record['disable-cooling'] === 'boolean' ? row.record['disable-cooling'] : null,
     websockets: readBoolean(row.record, 'websockets'),
     thinkingLevels: definition.openAi
       ? thinkingLevelsFromModels(row.models)
@@ -884,8 +885,12 @@ const applyAdvancedFields = (
     else delete next['excluded-models'];
   }
   if (draft.disableCooling !== undefined) {
-    if (draft.disableCooling === null) delete next['disable-cooling'];
-    else next['disable-cooling'] = draft.disableCooling;
+    if (draft.disableCooling === null) {
+      if (next._easycli_cooldown_managed !== true) delete next['disable-cooling'];
+    } else {
+      next['disable-cooling'] = draft.disableCooling;
+      delete next._easycli_cooldown_managed;
+    }
   }
   if (draft.websockets !== undefined && (section === 'codex-api-key' || section === 'xai-api-key')) {
     next.websockets = draft.websockets;

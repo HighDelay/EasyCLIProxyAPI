@@ -6,6 +6,15 @@ import { buildProviderHealthProbe } from '../src/services/providerHealthCheck';
 
 const sections: ProviderSection[] = ['gemini-api-key', 'interactions-api-key', 'vertex-api-key', 'codex-api-key', 'claude-api-key', 'xai-api-key', 'meta-api-key', 'openai-compatibility'];
 describe('v8 provider template fields', () => {
+  it('keeps provider-managed cooldown inheritance until the user chooses an explicit override', () => {
+    const group = { name: 'managed', 'disable-cooling': true, _easycli_cooldown_managed: true, keys: [{ 'api-key': 'fake' }] };
+    const draft = providerDraftFromRecord('codex-api-key', group);
+    expect(draft.disableCooling).toBeNull();
+    expect(buildProviderGroupRecord('codex-api-key', { ...draft, name: 'renamed' }, group)).toEqual({ ...group, name: 'renamed' });
+    const explicit = buildProviderGroupRecord('codex-api-key', { ...draft, disableCooling: true }, group);
+    expect(explicit['disable-cooling']).toBe(true);
+    expect(explicit._easycli_cooldown_managed).toBeUndefined();
+  });
   for (const section of sections) it(`${section} preserves unknown data, explicit defaults and inheritance`, () => {
     const group = {
       name: 'production', priority: 0, headers: {}, 'request-retry': -1, 'request-scoped-errors': [],

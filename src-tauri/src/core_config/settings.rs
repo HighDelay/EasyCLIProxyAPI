@@ -331,10 +331,26 @@ pub(crate) fn merge_core_config_yaml(
     if let Some(current) = current {
         let document: serde_norway::Value = serde_norway::from_str(current)
             .map_err(|error| format!("Failed to parse kernel configuration: {error}"))?;
-        startup_config.disable_cooling = core_config_settings_from_value(&document)?.disable_cooling;
+        let has_saved_cooling = document.as_mapping().is_some_and(|root| {
+            nested_yaml_value(root, &["routing", "cooldown", "disable-cooling"])
+                .or_else(|| nested_yaml_value(root, &["disable-cooling"]))
+                .is_some()
+        });
+        if has_saved_cooling {
+            startup_config.disable_cooling = core_config_settings_from_value(&document)?.disable_cooling;
+        }
     }
     startup_config.usage_statistics_enabled = config.usage_statistics_disabled != Some(true);
     let managed = apply_gui_managed_settings(&base, &startup_config)?;
+    let managed = if current.is_none() {
+        // New installations avoid penalizing accounts for temporary failures.
+        // Existing installations retain their configured transient-error policy.
+        patch_core_yaml_document(&managed, |document| {
+            set_core_yaml_path_value(document,
+                &["routing", "cooldown", "transient-error-cooldown-seconds"],
+                serde_norway::Value::Number((-1).into()))
+        })?.unwrap_or(managed)
+    } else { managed };
     let codex_compatibility_config = current
         .and_then(|content| serde_norway::from_str::<serde_norway::Value>(content).ok());
     let managed = patch_core_yaml_document(&managed, |document| {
@@ -827,6 +843,11 @@ pub(crate) fn write_bytes_atomically(path: &Path, content: &[u8]) -> Result<(), 
 
     let write_result = (|| -> io::Result<()> {
         let mut file = File::create(&temporary_path)?;
+        if let Ok(metadata) = fs::metadata(path) {
+            // Credentials may be private on Linux. Preserve permissions before
+            // writing any secret data to the replacement file.
+            file.set_permissions(metadata.permissions())?;
+        }
         file.write_all(content)?;
         file.sync_all()?;
         drop(file);

@@ -33,6 +33,7 @@ import {
   type ReverseProxyState,
 } from '../services/reverseProxy';
 import { CoolingToggle } from '../components/settings/CoolingToggle';
+import { CooldownPolicySettings } from '../components/settings/CooldownPolicySettings';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { open } from '../services/platform';
 import {
@@ -248,7 +249,7 @@ export function ConfigPanelPage() {
   const [proxyOverrideDraft, setProxyOverrideDraft] = useState(false);
   const [sessionAffinityDraft, setSessionAffinityDraft] = useState(false);
   const [sessionTtlDraft, setSessionTtlDraft] = useState('');
-  const [disableCoolingDraft, setDisableCoolingDraft] = useState(true);
+  const [disableCoolingDraft, setDisableCoolingDraft] = useState(false);
   const [requestRetryDraft, setRequestRetryDraft] = useState('3');
   const [maxRetryCredentialsDraft, setMaxRetryCredentialsDraft] = useState('0');
   const [maxRetryIntervalDraft, setMaxRetryIntervalDraft] = useState('30');
@@ -1154,6 +1155,7 @@ export function ConfigPanelPage() {
     retry: retrySettingsDirty, logging: loggingSettingsDirty, software: softwareSettingsDirty,
   };
   const nativeEntries: SettingSearchEntry[] = [
+    { category: 'requests', target: 'config-cooldown-policy', title: t('config.cooldown.title'), context: '', keywords: `${t('config.cooldown.scope')} ${t('config.cooldown.errors')} ${t('config.cooldown.persist')} Antigravity quota provider cooldown temporary errors 冷却 配额 提供商` },
     { category: 'general', target: 'config-native-keys', title: t('config.keys.title'), context: '', keywords: 'API key token 鉴权密钥 api-keys access' },
     { category: 'general', target: 'config-native-management', title: t('config.webuiKey.title'), context: '', keywords: 'WebUI secret-key 密钥 管理接口 面板 密码 management security' },
     { category: 'general', target: 'config-native-network', title: st('nativeNetwork'), context: '', keywords: [t('config.network.port'), t('config.network.listenHost'), t('config.network.proxyUrl'), t('config.network.systemProxy'), 'server host port proxy URL 8317 127.0.0.1 0.0.0.0 监听 地址 系统代理'].join(' ') },
@@ -2171,6 +2173,7 @@ export function ConfigPanelPage() {
                 {busyAction === 'retry' ? t('common.saving') : t('common.save')}
               </button></div>
         </section>
+        <CooldownPolicySettings hidden={searching || activeSubpage !== 'requests'} disabled={controlsDisabled} />
 <section id="config-native-logging" tabIndex={-1} hidden={searching || activeSubpage !== 'diagnostics'} className="panel surface-card config-diagnostics-panel">
           <div className="config-panel-heading">
             <div className="config-heading-title">

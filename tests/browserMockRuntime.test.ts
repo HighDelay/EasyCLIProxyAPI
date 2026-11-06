@@ -19,6 +19,18 @@ describe('browser mock options', () => {
 });
 
 describe('browser mock runtime', () => {
+  test('shares cooldown error settings between the policy card and advanced controls', async () => {
+    const runtime = createBrowserMockRuntime('running');
+    const policy = { providers: ['antigravity'], transientSeconds: 15, persist: true };
+    await runtime.invoke('set_cooldown_policy', { policy });
+    expect(await runtime.invoke('get_cooldown_policy')).toMatchObject({ policy });
+    const config = await runtime.invoke('get_extended_core_config') as { routing: { cooldown: Record<string, unknown> } };
+    expect(config.routing.cooldown).toMatchObject({ 'transient-error-cooldown-seconds': 15, 'save-cooldown-status': true });
+    await runtime.invoke('save_extended_core_config', { changes: [{
+      path: ['routing', 'cooldown', 'transient-error-cooldown-seconds'], expectedExists: true, expected: 15, value: -1,
+    }] });
+    expect(await runtime.invoke('get_cooldown_policy')).toMatchObject({ policy: { ...policy, transientSeconds: -1 } });
+  });
   test('persists tags in downloads while omitting them from the core list response', async () => {
     const runtime = createBrowserMockRuntime('running');
     const request = (method: string, path: string, extra = {}) => runtime.invoke('management_request', { request: { method, path, ...extra } });

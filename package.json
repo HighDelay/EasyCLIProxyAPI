@@ -17,6 +17,8 @@
     "test:ui:settings": "node tests/config-settings-ui.cjs",
     "test:ui:client-model-access": "node tests/client-model-access-ui.cjs",
     "test:core:client-model-access": "node scripts/test-model-access.mjs",
+    "test:core:cooldown-policy": "node scripts/test-model-access.mjs --cooldown-only",
+    "test:ui:cooldown-policy": "node tests/cooldown-policy-ui.cjs",
     "test:ui:browser-mock": "node tests/browser-mock-ui.cjs",
     "test:ui:agent-environment": "node tests/agent-environment-directory-ui.cjs",
     "test:ui:cli-launch-arguments": "node tests/cli-launch-arguments-ui.cjs",

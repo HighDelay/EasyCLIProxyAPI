@@ -2,6 +2,8 @@ use super::support::agent_test_home;
 use super::*;
 use std::process::{Child, Stdio};
 
+mod cooldown;
+
 struct TestCore {
     child: Option<Child>,
     directory: PathBuf,

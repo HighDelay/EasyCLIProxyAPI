@@ -2,6 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import { authFileSettingsFromPayload, buildAuthFileSettingsPatch, loadAuthFileSettings, saveAuthFileSettings } from '../src/services/authFileSettings';
 
 describe('credential settings', () => {
+  it('shows managed provider defaults as inherited and allows an explicit override', () => {
+    const inherited = authFileSettingsFromPayload({ type: 'codex', disable_cooling: true, _easycli_cooldown_managed: true });
+    expect(inherited.disable_cooling).toBe('');
+    expect(buildAuthFileSettingsPatch(inherited, { ...inherited, disable_cooling: 'true' })).toEqual({ disable_cooling: true });
+    expect(authFileSettingsFromPayload({ disable_cooling: true }).disable_cooling).toBe('true');
+    expect(authFileSettingsFromPayload({ disable_cooling: false, _easycli_cooldown_managed: true }).disable_cooling).toBe('false');
+  });
   it('normalizes tags, ignores malformed values and patches only changed tag groups', async () => {
     const original = authFileSettingsFromPayload({ tags: [' team ', '', 'team', 'production', null, 7], access_token: 'secret' });
     expect(original.tags).toBe('team, production');

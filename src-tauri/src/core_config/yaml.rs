@@ -677,7 +677,7 @@ where
     patch_existing_core_config_at(&config_path, update)
 }
 
-fn patch_existing_core_config_at<F>(config_path: &Path, update: F) -> Result<(), String>
+pub(crate) fn patch_existing_core_config_at<F>(config_path: &Path, update: F) -> Result<(), String>
 where
     F: FnOnce(&mut serde_norway::Value) -> Result<bool, String>,
 {
