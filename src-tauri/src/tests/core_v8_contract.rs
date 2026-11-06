@@ -59,6 +59,7 @@ plugins:
   configs:
     model-access:
       enabled: true
+      cooldown-providers: [local-test-provider]
       rules:
         {scope}: [private-model, 'premium-*', 'gpt*']
 api-keys:

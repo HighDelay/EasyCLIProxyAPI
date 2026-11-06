@@ -213,7 +213,7 @@ jobs:
           bun install --frozen-lockfile
           node scripts/build-model-access.mjs
           cargo test --manifest-path plugins/model-access/Cargo.toml --locked --target-dir src-tauri/target
-          bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts tests/clientModelAccess.test.ts tests/browserMockRuntime.test.ts
+          bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts tests/clientModelAccess.test.ts tests/browserMockRuntime.test.ts tests/authFileSettings.test.ts tests/providerTemplate.test.ts
           cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: tests::core_config:: client_model_access:: cooldown_policy::
           bun tauri build --no-bundle
         shell: bash
