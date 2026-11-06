@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n';
 import { getCooldownPolicy, setCooldownPolicy, cooldownProviderLabel, type CooldownPolicy } from '../../services/cooldownPolicy';
 import { Checkbox } from '../Checkbox';
 import { Notice } from '../Notice';
+import { Select } from '../Select';
 import './CooldownPolicySettings.css';
 
 export function CooldownPolicySettings({ hidden, disabled }: { hidden: boolean; disabled: boolean }) {
@@ -65,7 +66,7 @@ export function CooldownPolicySettings({ hidden, disabled }: { hidden: boolean; 
     <div className="config-network-section-heading config-section-heading-with-actions">
       <div className="config-network-section-title"><ShieldCheck size={16} aria-hidden="true" />
         <h3 id="cooldown-policy-title">{t('config.cooldown.title')}</h3></div>
-      <div className="cooldown-policy-actions"><span className="config-card-status" role="status">{dirty ? t('config.network.unsaved') : ''}</span>
+      <div className="cooldown-policy-actions"><span className="config-card-status" aria-live="polite">{dirty ? t('config.network.unsaved') : ''}</span>
       <button type="button" className="icon-button quiet" aria-label={t(dirty ? 'config.cooldown.discard' : 'config.cooldown.reload')}
         title={t(dirty ? 'config.cooldown.discard' : 'config.cooldown.reload')} disabled={loading || saving} onClick={() => {
           setDraft(original);
@@ -78,18 +79,18 @@ export function CooldownPolicySettings({ hidden, disabled }: { hidden: boolean; 
     {error && <Notice tone="error">{error}</Notice>}
     {warning && <Notice tone="warn">{warning}</Notice>}
     {saved && <Notice tone="success">{t('config.cooldown.saved')}</Notice>}
-    {loading ? <p className="cooldown-policy-hint" role="status">{t('common.loading')}</p> : draft && <>
+    {loading ? <Notice tone="info" variant="text" icon={false}>{t('common.loading')}</Notice> : draft && <>
       <div className="cooldown-policy-fields">
         <label className="cooldown-policy-field"><span>{t('config.cooldown.scope')}</span>
-          <select className="config-network-input" value={draft.providers === null ? 'all' : 'selected'} disabled={locked}
+          <Select className="config-network-input" value={draft.providers === null ? 'all' : 'selected'} disabled={locked}
             onChange={event => change({ providers: event.currentTarget.value === 'all' ? null : ['antigravity'] })}>
             <option value="all">{t('config.cooldown.all')}</option><option value="selected">{t('config.cooldown.selected')}</option>
-          </select></label>
+          </Select></label>
         <label className="cooldown-policy-field"><span>{t('config.cooldown.errors')}</span>
-          <select className="config-network-input" value={temporary ? 'temporary' : 'quota'} disabled={locked}
+          <Select className="config-network-input" value={temporary ? 'temporary' : 'quota'} disabled={locked}
             onChange={event => change({ transientSeconds: event.currentTarget.value === 'quota' ? -1 : validDuration ? Number(duration) : 0 })}>
             <option value="quota">{t('config.cooldown.quota')}</option><option value="temporary">{t('config.cooldown.temporary')}</option>
-          </select></label>
+          </Select></label>
       </div>
       {draft.providers !== null && <fieldset className="cooldown-provider-list" disabled={locked}>
         <legend>{t('config.cooldown.providers')}</legend>

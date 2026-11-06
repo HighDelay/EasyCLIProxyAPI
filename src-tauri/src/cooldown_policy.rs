@@ -54,7 +54,7 @@ fn policy_from(document: &serde_norway::Value) -> Result<CooldownPolicy, String>
         yaml_at(document, &[COOLDOWN[0], COOLDOWN[1], name]).or_else(|| yaml_at(document, &[name]))
     };
     let transient_seconds = match read("transient-error-cooldown-seconds") {
-        None => 0,
+        None => DEFAULT_TRANSIENT_ERROR_COOLDOWN_SECONDS as i32,
         Some(value) => value
             .as_i64()
             .and_then(|v| i32::try_from(v).ok())
@@ -349,6 +349,12 @@ pub(crate) fn reconcile_live_at(path: &Path, config: &GuiConfigFile) -> Result<(
         return Ok(());
     }
     let document = read_document(path)?;
+    let mut connection_config = config.clone();
+    apply_core_settings_to_gui_config(
+        &mut connection_config,
+        &core_config_settings_from_value(&document)?,
+    );
+    let config = &connection_config;
     let policy = policy_from(&document)?;
     patch_existing_core_config_at(path, |document| Ok(update_api_groups(document, &policy)))?;
     let mut pending = Vec::new();
@@ -555,7 +561,10 @@ pub(crate) async fn set_cooldown_policy(
                 changed |= update_api_groups(document, &policy);
                 Ok(changed)
             })?;
-            let config = app.state::<GuiConfigState>().snapshot()?;
+            let config = app.state::<GuiConfigState>().update(|config| {
+                config.transient_error_cooldown_seconds = i64::from(policy.transient_seconds);
+                Ok(())
+            })?;
             if running {
                 reconcile_live(&config)?;
             } else {
@@ -727,7 +736,7 @@ mod tests {
     #[test]
     fn policy_keeps_existing_transient_settings_and_validates_selection() {
         for (yaml, seconds) in [
-            ("{}", 0),
+            ("{}", -1),
             (
                 "routing: {cooldown: {transient-error-cooldown-seconds: -1}}",
                 -1,

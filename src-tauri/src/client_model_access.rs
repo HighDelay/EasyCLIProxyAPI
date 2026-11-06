@@ -6,6 +6,100 @@ const PLUGIN: &[u8] = include_bytes!(env!("CPA_MODEL_POLICY_PLUGIN"));
 const POLICY_PATH: &[&str] = &["plugins", "configs", "model-access", "rules"];
 type Rules = BTreeMap<String, Vec<String>>;
 
+/// Public model listings use client-key authentication rather than management
+/// authentication. Prefer an unrestricted key, and union restricted catalogs
+/// if every configured key has a model policy. Never sends inference requests.
+pub(crate) async fn read_client_model_catalog(path: &Path) -> Result<serde_json::Value, String> {
+    let (settings, policies, tls) = {
+        let _guard = lock_core_config_file()?;
+        let content = fs::read_to_string(path)
+            .map_err(|e| format!("Cannot read model catalog configuration: {e}"))?;
+        let document: serde_norway::Value = serde_norway::from_str(&content)
+            .map_err(|e| format!("Invalid model catalog configuration: {e}"))?;
+        (
+            core_config_settings_from_value(&document)?,
+            rules(&document)?,
+            core_tls_settings_from_value(&document)?.enabled,
+        )
+    };
+    let origin = core_origin(&settings.host, settings.port, tls);
+    let mut keys = settings.api_keys;
+    if keys.is_empty() {
+        keys.push(String::new());
+    }
+    let key_rules = |key: &str| {
+        policies
+            .get(&caller_scope(key))
+            .cloned()
+            .unwrap_or_default()
+    };
+    keys.sort_by_key(|key| !key_rules(key).is_empty());
+    let client = management_http_client()?;
+    let mut models = BTreeMap::new();
+    let mut seen_policies = std::collections::BTreeSet::new();
+    let mut success = false;
+    let mut last_error = "No client key could load the live model catalog".to_string();
+    for key in keys {
+        let mut excluded = key_rules(&key);
+        excluded.sort();
+        if !seen_policies.insert(excluded.clone()) {
+            continue;
+        }
+        let mut request = client
+            .get(format!("{origin}/v1/models"))
+            .timeout(Duration::from_secs(8));
+        if !key.is_empty() {
+            request = request.bearer_auth(&key);
+        }
+        let response = match request.send().await {
+            Ok(response) => response,
+            Err(error) => {
+                last_error =
+                    format_management_request_error("Live model catalog connection failed", &error);
+                break;
+            }
+        };
+        if !response.status().is_success() {
+            last_error = format!(
+                "Live model catalog returned HTTP {}",
+                response.status().as_u16()
+            );
+            continue;
+        }
+        let payload: serde_json::Value = match response.json().await {
+            Ok(payload) => payload,
+            Err(_) => {
+                last_error = "Invalid live model catalog JSON".into();
+                continue;
+            }
+        };
+        let Some(data) = payload.get("data").and_then(serde_json::Value::as_array) else {
+            last_error = "Invalid live model catalog response".into();
+            continue;
+        };
+        success = true;
+        for model in data {
+            if let Some(id) = model.get("id").and_then(serde_json::Value::as_str) {
+                models.insert(id.to_lowercase(), model.clone());
+            }
+        }
+        if excluded.is_empty() {
+            return Ok(
+                serde_json::json!({"data":models.into_values().collect::<Vec<_>>(), "partial":false}),
+            );
+        }
+    }
+    if !success {
+        return Err(last_error);
+    }
+    Ok(serde_json::json!({"data":models.into_values().collect::<Vec<_>>(), "partial":true}))
+}
+
+#[tauri::command]
+pub(crate) async fn get_client_model_catalog() -> Result<serde_json::Value, String> {
+    read_client_model_catalog(&core_install_dir()?.join(CORE_CONFIG_FILE)).await
+}
+
 fn caller_scope(key: &str) -> String {
     format!(
         "{:x}",

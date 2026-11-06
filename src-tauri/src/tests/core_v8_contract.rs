@@ -72,6 +72,9 @@ api-keys:
 "#, auth_dir = path_to_string(&core.directory.join("auth")))).unwrap();
     crate::client_model_access::install_for_start(&core.config, &core.directory).unwrap();
     core.start().await;
+    let live_catalog = crate::client_model_access::read_client_model_catalog(&core.config).await.unwrap();
+    assert_eq!(live_catalog["partial"], false);
+    assert!(live_catalog["data"].as_array().unwrap().iter().any(|m| m["id"] == "private-model"), "The picker fallback used the edited key's restricted catalog");
     let gui = GuiConfigFile { port, host: "127.0.0.1".into(), management_secret_key: "isolated-test-secret".into(), ..GuiConfigFile::default() };
     crate::client_model_access::verify_for_start(&core.config, &gui).unwrap();
     let plugins: serde_json::Value = core.client.get(format!("{}/v8/management/plugins", core.origin))
@@ -152,6 +155,18 @@ api-keys:
     assert_eq!(upstream_calls.load(Ordering::SeqCst), calls_before_websocket, "Excluded WebSocket model reached upstream");
     assert_eq!(upstream_calls.load(Ordering::SeqCst), 2, "An excluded HTTP request reached upstream");
     upstream_task.abort();
+    core.stop();
+    let other_scope = format!("{:x}", Sha256::digest(b"cli-proxy-api:caller-scope:v1\0other-client"));
+    let mut document: serde_norway::Value = serde_norway::from_str(&fs::read_to_string(&core.config).unwrap()).unwrap();
+    set_core_yaml_path_value(&mut document, &["plugins", "configs", "model-access", "rules", &other_scope],
+        serde_norway::to_value(vec!["public-model"]).unwrap()).unwrap();
+    fs::write(&core.config, serde_norway::to_string(&document).unwrap()).unwrap();
+    core.start().await;
+    let combined = crate::client_model_access::read_client_model_catalog(&core.config).await.unwrap();
+    assert_eq!(combined["partial"], true);
+    for id in ["private-model", "public-model"] {
+        assert!(combined["data"].as_array().unwrap().iter().any(|m| m["id"] == id), "Restricted client catalogs were not combined: {id}");
+    }
     core.stop();
     let yaml = fs::read_to_string(&core.config).unwrap().replace("enabled: true", "enabled: false");
     fs::write(&core.config, yaml).unwrap();

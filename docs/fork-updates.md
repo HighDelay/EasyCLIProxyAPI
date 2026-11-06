@@ -48,6 +48,12 @@ including failover, reset delay, temporary errors, persistence, and provider
 selection. These checks run on all four platforms. Review upstream changes before merging them; a successful
 build alone cannot establish that every custom behavior was retained.
 
+The model picker loads each catalog independently and can recover through the
+live `/v1/models` endpoint using the installed server settings. It prefers a
+client key without model exclusions and combines restricted catalogs if needed.
+Saved literal exclusions remain selectable when catalogs are unavailable.
+This fallback only reads model lists; inference still follows each key's policy.
+
 ## Publish an update
 
 1. Open the fork's **Actions → Build portable releases → Run workflow**.

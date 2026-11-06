@@ -7,7 +7,7 @@ const fs = require('node:fs/promises');
   const { createServer } = await import('vite');
   const react = (await import('@vitejs/plugin-react')).default;
   const server = await createServer({ configFile: false, root: path.resolve(__dirname, '..'), plugins: [react()],
-    logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
+    logLevel: 'error', server: { host: '127.0.0.1', port: 0, watch: { ignored: ['**/src-tauri/**', '**/bin-work/**'] } } });
   await server.listen();
   const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined), headless: true });
   const output = path.resolve('bin-work/model-exclusions-ui');
@@ -91,7 +91,47 @@ const fs = require('node:fs/promises');
     exclusions = dialog.getByRole('textbox', { name: 'Model names and wildcard rules', exact: true });
     await page.waitForFunction(() => document.querySelector('textarea[aria-labelledby="client-model-exclusions-label"]')?.disabled === false);
     assert.equal(await exclusions.inputValue(), '', 'Rules leaked to another key');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.evaluate(() => {
+      const native = window.__TAURI_INTERNALS__;
+      const original = native.invoke.bind(native);
+      window.__catalogFailure = 'management';
+      native.invoke = (command, args, ...rest) => {
+        if (command === 'management_request' && ['/credentials', '/config/api-keys'].includes(args?.request?.path)) {
+          return Promise.reject(new Error('Management catalog unavailable (test)'));
+        }
+        if (command === 'get_client_model_catalog' && window.__catalogFailure === 'all') {
+          return Promise.reject(new Error('Live catalog unavailable (test)'));
+        }
+        return original(command, args, ...rest);
+      };
+    });
+    await edit(1).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByRole('checkbox', { name: 'claude-sonnet-4-6', exact: true }).waitFor();
+    assert.equal(await dialog.locator('.client-model-picker-error-detail').count(), 0, 'A recovered catalog still showed a loading error');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.evaluate(async () => {
+      const native = window.__TAURI_INTERNALS__;
+      const config = await native.invoke('get_core_config_settings');
+      await native.invoke('set_core_api_key_model_exclusions', { apiKey: config.apiKeys[1].apiKey,
+        excludedModels: ['gpt-6-astra', 'gpt-5.6', 'gpt-6.1-terra'] });
+      window.__catalogFailure = 'all';
+    });
+    await edit(2).click();
+    dialog = page.getByRole('dialog');
+    for (const id of ['gpt-6-astra', 'gpt-5.6', 'gpt-6.1-terra']) {
+      const checkbox = dialog.getByRole('checkbox', { name: id, exact: true });
+      await checkbox.waitFor();
+      assert.equal(await checkbox.isChecked(), true, `Saved exclusion ${id} disappeared when catalogs failed`);
+    }
+    assert.equal(await dialog.getByText('Saved exclusion', { exact: true }).count(), 3);
+    await page.setViewportSize({ width: 640, height: 600 });
+    const failureSave = await dialog.getByRole('button', { name: 'Save', exact: true }).boundingBox();
+    assert(failureSave && failureSave.y + failureSave.height <= 600, 'Catalog errors clipped Save at the minimum window size');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: path.join(output, 'saved-exclusions-during-failure.png') });
     assert.deepEqual(errors, []);
-    console.log('Models load across providers, search/filter/select/save work, wildcards remain visible, and key policies stay isolated at 1280/768/390px.');
+    console.log('Model selection, key isolation, live fallback, saved exclusions during catalog failures, and 1280/768/390px layouts passed.');
   } finally { await browser.close(); await server.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

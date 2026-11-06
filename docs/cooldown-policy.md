@@ -1,6 +1,6 @@
 # Cooldown policy
 
-Open **Advanced Features → Models & requests**. Enable **Enable cooldowns**
+Open **Advanced Features → Routing & reliability**. Enable **Enable cooldowns**
 under **Retries & cooldowns** and save. The **Cooldown policy** card controls:
 
 - **All providers** or **Selected providers**, including Antigravity and custom

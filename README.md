@@ -161,7 +161,7 @@ Manually renamed files without a session ID in their filename or a database path
 5. Return to **Home**, start the core, then copy the required local endpoint or configure an OAuth/API provider.
 
 New configurations enable account/model cooldowns and use the quota-focused
-error policy. Under **Advanced Features → Models & requests**, choose providers,
+error policy. Under **Advanced Features → Routing & reliability**, choose providers,
 include temporary failures if desired, and optionally remember cooldowns after
 restarts. Existing saved choices and individual overrides are preserved.
 See [cooldown policy](docs/cooldown-policy.md) for Antigravity and other providers.

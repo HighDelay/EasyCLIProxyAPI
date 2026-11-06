@@ -1,3 +1,4 @@
+@layer components {
 .client-model-picker { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 10px; }
 .client-model-picker legend { padding: 0; color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-body); }
 .client-model-picker p { margin: 0; font-size: var(--font-size-caption); line-height: var(--line-height-body); color: var(--color-text-secondary); }
@@ -18,7 +19,7 @@
 .client-model-picker-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--font-size-caption); color: var(--color-text-secondary); }
 .client-model-picker-summary .client-model-clear { min-height: 30px; height: 30px; padding: 0 10px; font-size: var(--font-size-caption); }
 .client-model-picker-message { display: flex; gap: 8px; align-items: center; padding: 18px 12px; }
-.client-model-picker p.client-model-picker-error { color: var(--color-danger-text); }
+.client-model-picker-error-detail { overflow-wrap: anywhere; }
 .client-model-picker-rules { display: grid; gap: 8px; font-size: var(--font-size-caption); color: var(--color-text-secondary); }
 .client-model-picker-rules textarea { min-height: 72px; height: 76px; padding: 8px 10px; resize: vertical; }
 .client-model-picker-rules small { font-size: var(--font-size-caption); line-height: var(--line-height-body); }
@@ -26,4 +27,5 @@
   .client-model-picker-filters { grid-template-columns: minmax(0, 1fr) 34px; }
   .client-model-picker-filters .search-control { grid-column: 1 / -1; }
   .client-model-picker-list { max-height: 180px; }
+}
 }

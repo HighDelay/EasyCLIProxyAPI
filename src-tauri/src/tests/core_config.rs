@@ -946,6 +946,7 @@ fn legacy_gui_config_can_seed_managed_core_settings() {
         request_retry: 1,
         max_retry_credentials: 2,
         max_retry_interval: 5,
+        transient_error_cooldown_seconds: 30,
         streaming_bootstrap_retries: 1,
         management_secret_key: Some("management-secret".to_string()),
     };
@@ -1735,6 +1736,7 @@ fn core_config_reads_retry_fields_and_uses_core_defaults() {
 #[test]
 fn cooling_defaults_only_fill_missing_settings() {
     assert!(!GuiConfigFile::default().disable_cooling);
+    assert_eq!(GuiConfigFile::default().transient_error_cooldown_seconds, DEFAULT_TRANSIENT_ERROR_COOLDOWN_SECONDS);
     let missing: GuiConfigFile = toml::from_str("").unwrap();
     assert!(!missing.disable_cooling);
     for disabled in [false, true] {
@@ -1770,6 +1772,36 @@ fn cooling_defaults_only_fill_missing_settings() {
         let document: serde_norway::Value = serde_norway::from_str(&rendered).unwrap();
         assert_eq!(document["routing"]["cooldown"]["transient-error-cooldown-seconds"].as_i64(), Some(seconds));
     }
+}
+
+#[test]
+fn transient_error_cooldown_defaults_off_and_preserves_existing_values() {
+    let template = "config-version: 8\nserver: {port: 8317}\n";
+    let config = GuiConfigFile::default();
+
+    let fresh = merge_core_config_yaml(template, None, &config).unwrap();
+    let fresh_document = serde_norway::from_str::<serde_norway::Value>(&fresh).unwrap();
+    assert_eq!(
+        fresh_document["routing"]["cooldown"]["transient-error-cooldown-seconds"],
+        -1
+    );
+
+    let current = "config-version: 8\nrouting:\n  cooldown:\n    transient-error-cooldown-seconds: 30\n";
+    let merged = merge_core_config_yaml(template, Some(current), &config).unwrap();
+    let merged_document = serde_norway::from_str::<serde_norway::Value>(&merged).unwrap();
+    assert_eq!(
+        merged_document["routing"]["cooldown"]["transient-error-cooldown-seconds"],
+        30
+    );
+    let second = merge_core_config_yaml(template, Some(&merged), &config).unwrap();
+    assert_eq!(second, merged);
+
+    let patched = patch_core_retry_yaml(template, &config).unwrap().unwrap();
+    let patched_document = serde_norway::from_str::<serde_norway::Value>(&patched).unwrap();
+    assert_eq!(
+        patched_document["routing"]["cooldown"]["transient-error-cooldown-seconds"],
+        -1
+    );
 }
 
 #[test]
@@ -2103,6 +2135,7 @@ fn startup_preserves_all_user_owned_yaml_and_only_applies_gui_managed_values() {
         request_retry: 1,
         max_retry_credentials: 2,
         max_retry_interval: 5,
+        transient_error_cooldown_seconds: 30,
         streaming_bootstrap_retries: 1,
     };
     let merged = merge_core_config_yaml(template, Some(current), &config).unwrap();

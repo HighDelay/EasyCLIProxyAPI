@@ -1,3 +1,4 @@
+@layer components {
 .cooldown-policy { display: grid; gap: 14px; }
 .cooldown-policy[hidden] { display: none; }
 .cooldown-policy-actions { display: flex; align-items: center; gap: 8px; }
@@ -12,3 +13,4 @@
 .cooldown-provider-list label { min-width: 0; overflow-wrap: anywhere; }
 .cooldown-duration { max-width: 360px; }
 @media (max-width: 600px) { .cooldown-policy-fields { grid-template-columns: minmax(0, 1fr); } }
+}

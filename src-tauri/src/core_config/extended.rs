@@ -1189,6 +1189,10 @@ pub(crate) fn save_extended_core_config(
         auth_dir_path_for_core(&next.auth_dir, &core_install_dir()?)?;
         next.auth_dir_user_selected = true;
     }
+    if changes.iter().any(|change| change.path == parts("routing/cooldown/transient-error-cooldown-seconds")) {
+        next.transient_error_cooldown_seconds = at(&result.config, &parts("routing/cooldown/transient-error-cooldown-seconds"))
+            .and_then(Json::as_i64).unwrap_or(DEFAULT_TRANSIENT_ERROR_COOLDOWN_SECONDS);
+    }
     validate_gui_config(&next)?;
     if fs::read_to_string(&path).map_err(|error| error.to_string())? != content {
         return Err("Configuration changed externally. Reload before saving".into());
@@ -1199,7 +1203,8 @@ pub(crate) fn save_extended_core_config(
         || image_preference_changed
         || next.plugins_enabled != previous.plugins_enabled
         || next.auth_dir != previous.auth_dir
-        || next.auth_dir_user_selected != previous.auth_dir_user_selected;
+        || next.auth_dir_user_selected != previous.auth_dir_user_selected
+        || next.transient_error_cooldown_seconds != previous.transient_error_cooldown_seconds;
     if let Err(error) = write_core_config_if_changed(&path, &updated).and_then(|_| {
         if gui_changed {
             write_gui_config(&next)

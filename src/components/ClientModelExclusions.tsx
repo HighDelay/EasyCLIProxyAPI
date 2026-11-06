@@ -1,23 +1,26 @@
 import { useEffect, useState } from 'react';
 import { LoaderCircle, RefreshCw, Search } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { getClientModelChoices, parseClientModelExclusions, clientModelExcluded,
+import { getClientModelChoices, includeSavedModelRules, parseClientModelExclusions, clientModelExcluded,
   setClientModelSelected, type ClientModelChoice } from '../services/clientModelAccess';
 import { modelMatchesRule } from '../services/oauthModels';
 import { Checkbox } from './Checkbox';
+import { Notice } from './Notice';
+import { Select } from './Select';
 import './ClientModelExclusions.css';
 
 type Props = { value: string; disabled: boolean; onChange: (value: string) => void };
 const providerLabel = (provider: string) => ({ codex: 'Codex', claude: 'Claude', gemini: 'Gemini',
-  antigravity: 'Antigravity', xai: 'xAI', meta: 'Meta', deepseek: 'DeepSeek', vertex: 'Vertex',
+  antigravity: 'Antigravity', openai: 'OpenAI', xai: 'xAI', meta: 'Meta', deepseek: 'DeepSeek', vertex: 'Vertex',
   interactions: 'Gemini Interactions', 'gemini-interactions': 'Gemini Interactions',
   'openai-compatibility': 'OpenAI compatible' } as Record<string, string>)[provider] ?? provider;
 
 export function ClientModelExclusions({ value, disabled, onChange }: Props) {
   const { t } = useI18n();
-  const [models, setModels] = useState<ClientModelChoice[]>([]);
+  const [catalog, setModels] = useState<ClientModelChoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [errorDetail, setErrorDetail] = useState('');
   const [reload, setReload] = useState(0);
   const [search, setSearch] = useState('');
   const [provider, setProvider] = useState('');
@@ -25,17 +28,20 @@ export function ClientModelExclusions({ value, disabled, onChange }: Props) {
     let cancelled = false;
     setLoading(true);
     setFailed(false);
+    setErrorDetail('');
     void getClientModelChoices().then(result => {
       if (!cancelled) {
-        setModels(result.models);
+        setModels(current => result.models.length || !result.failedProviders ? result.models : current);
         setFailed(result.failedProviders > 0);
+        setErrorDetail(result.errors[0] ?? '');
         setProvider(current => result.models.some(model => model.providers.includes(current)) ? current : '');
       }
-    }).catch(() => { if (!cancelled) { setModels([]); setFailed(true); } })
+    }).catch(error => { if (!cancelled) { setFailed(true); setErrorDetail(String(error)); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [reload]);
   const rules = parseClientModelExclusions(value);
+  const models = includeSavedModelRules(catalog, rules);
   const query = search.trim().toLowerCase();
   const providers = [...new Set(models.flatMap(model => model.providers))].sort();
   const visible = models.filter(model => (!provider || model.providers.includes(provider))
@@ -51,16 +57,17 @@ export function ClientModelExclusions({ value, disabled, onChange }: Props) {
           onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
           aria-label={t('config.keys.modelsSearch')} placeholder={t('config.keys.modelsSearch')} />
       </label>
-      <select value={provider} onChange={event => setProvider(event.currentTarget.value)} aria-label={t('config.keys.modelsProvider')}>
+      <Select value={provider} onChange={event => setProvider(event.currentTarget.value)} aria-label={t('config.keys.modelsProvider')}>
         <option value="">{t('config.keys.modelsAllProviders')}</option>
         {providers.map(name => <option key={name} value={name}>{providerLabel(name)}</option>)}
-      </select>
+      </Select>
       <button type="button" className="icon-button quiet" disabled={loading || disabled}
         onClick={() => setReload(version => version + 1)} title={t('common.refresh')} aria-label={t('common.refresh')}>
         <RefreshCw size={16} aria-hidden="true" />
       </button>
     </div>
-    {failed ? <p className="client-model-picker-error" role="status">{t('config.keys.modelsLoadError')}</p> : null}
+    {failed ? <Notice tone="warn" variant="text" icon={false}>{t('config.keys.modelsLoadError')}</Notice> : null}
+    {failed && errorDetail ? <p className="client-model-picker-error-detail">{errorDetail}</p> : null}
     <div className="client-model-picker-list" aria-busy={loading}>
       {loading ? <p className="client-model-picker-message"><LoaderCircle size={16} className="spin" aria-hidden="true" />{t('common.loading')}</p>
         : visible.length === 0 ? <p className="client-model-picker-message">{t(models.length ? 'config.keys.modelsNoMatch' : 'config.keys.modelsEmpty')}</p>
@@ -70,7 +77,7 @@ export function ClientModelExclusions({ value, disabled, onChange }: Props) {
             <Checkbox checked={clientModelExcluded(model.id, rules)} disabled={disabled || Boolean(pattern)}
               aria-label={model.id} onChange={event => onChange(setClientModelSelected(value, model.id, event.currentTarget.checked))} />
             <span className="client-model-picker-name" title={model.displayName}>{model.id}</span>
-            <span className="client-model-picker-provider">{model.providers.map(providerLabel).join(' · ')}{pattern ? <small>{pattern}</small> : null}</span>
+            <span className="client-model-picker-provider">{model.savedRule ? t('config.keys.modelsSavedRule') : model.providers.map(providerLabel).join(' · ')}{pattern ? <small>{pattern}</small> : null}</span>
           </label>;
         })}
     </div>
