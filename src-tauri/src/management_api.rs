@@ -467,16 +467,20 @@ pub(crate) async fn submit_oauth_callback(
     Ok(())
 }
 
+/// Use a fresh client for a task that owns an independent runtime. Reusing a
+/// pooled connection from a blocked or dropped runtime can stall the request.
+pub(crate) fn new_management_http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .no_proxy()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|err| format_management_request_error("Failed to create management API client", &err))
+}
+
 pub(crate) fn management_http_client() -> Result<reqwest::Client, String> {
-    static CLIENT: LazyLock<Result<reqwest::Client, String>> = LazyLock::new(|| {
-        reqwest::Client::builder()
-            .no_proxy()
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(30))
-            .danger_accept_invalid_certs(true)
-            .build()
-            .map_err(|err| format_management_request_error("Failed to create management API client", &err))
-    });
+    static CLIENT: LazyLock<Result<reqwest::Client, String>> = LazyLock::new(new_management_http_client);
     CLIENT.as_ref().cloned().map_err(Clone::clone)
 }
 

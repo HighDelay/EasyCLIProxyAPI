@@ -385,7 +385,7 @@ pub(crate) fn reconcile_live_at(path: &Path, config: &GuiConfigFile) -> Result<(
         .build()
         .map_err(|e| e.to_string())?
         .block_on(async {
-            let client = management_http_client()?;
+            let client = crate::management_api::new_management_http_client()?;
             for path in pending {
                 let _guard = lock_credential_updates().await;
                 // Re-read after any queued manual override has completed.

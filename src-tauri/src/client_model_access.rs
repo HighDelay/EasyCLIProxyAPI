@@ -34,7 +34,7 @@ pub(crate) async fn read_client_model_catalog(path: &Path) -> Result<serde_json:
             .unwrap_or_default()
     };
     keys.sort_by_key(|key| !key_rules(key).is_empty());
-    let client = management_http_client()?;
+    let client = crate::management_api::new_management_http_client()?;
     let mut models = BTreeMap::new();
     let mut seen_policies = std::collections::BTreeSet::new();
     let mut success = false;
@@ -320,7 +320,7 @@ pub(crate) fn verify_for_start(config_path: &Path, config: &GuiConfigFile) -> Re
     // Keep the HTTP probe off either caller's runtime thread.
     std::thread::spawn(move || {
         tauri::async_runtime::block_on(async move {
-            let response = management_http_client()?
+            let response = crate::management_api::new_management_http_client()?
                 .get(endpoint)
                 .header("Authorization", authorization)
                 .send()
