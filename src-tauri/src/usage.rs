@@ -3059,20 +3059,37 @@ fn load_usage_overview(
             COALESCE(SUM(cache_creation_tokens), 0),
             COALESCE(SUM(total_tokens), 0),
             COALESCE(SUM(latency_ms), 0),
-            COALESCE(AVG(CASE
-                WHEN generate != 0
-                 AND failed = 0
-                 AND canceled = 0
-                 AND output_tokens > 0
-                 AND latency_ms > 0
-                THEN output_tokens * 1000.0 / latency_ms
-            END), 0.0),
+            COALESCE(
+                SUM(CASE
+                    WHEN failed = 0
+                     AND canceled = 0
+                     AND generate != 0
+                     AND output_tokens >= 100
+                     AND ttft_ms IS NOT NULL
+                     AND ttft_ms > 0
+                     AND latency_ms - ttft_ms >= 100
+                    THEN output_tokens
+                END) * 1000.0
+                / NULLIF(SUM(CASE
+                    WHEN failed = 0
+                     AND canceled = 0
+                     AND generate != 0
+                     AND output_tokens >= 100
+                     AND ttft_ms IS NOT NULL
+                     AND ttft_ms > 0
+                     AND latency_ms - ttft_ms >= 100
+                    THEN latency_ms - ttft_ms
+                END), 0),
+                0.0
+            ),
             COALESCE(SUM(CASE
-                WHEN generate != 0
-                 AND failed = 0
+                WHEN failed = 0
                  AND canceled = 0
-                 AND output_tokens > 0
-                 AND latency_ms > 0
+                 AND generate != 0
+                 AND output_tokens >= 100
+                 AND ttft_ms IS NOT NULL
+                 AND ttft_ms > 0
+                 AND latency_ms - ttft_ms >= 100
                 THEN 1
                 ELSE 0
             END), 0),
@@ -7141,69 +7158,129 @@ mod tests {
     }
 
     #[test]
-    fn overview_tps_averages_request_speeds_without_requiring_ttft() {
+    fn overview_tps_uses_weighted_generation_window() {
         let root = test_root("tps-overview");
         let mut connection = open_test_database(&root);
 
         let mut first = sample_record("tps-1", "2026-07-17T20:30:00+08:00", "gpt-a");
-        first.latency_ms = 1_000;
-        first.ttft_ms = Some(200);
-        first.tokens.output_tokens = 80;
+        first.latency_ms = 3_000;
+        first.ttft_ms = Some(1_000);
+        first.tokens.output_tokens = 500;
 
         let mut second = sample_record("tps-2", "2026-07-17T20:31:00+08:00", "gpt-a");
-        second.latency_ms = 2_000;
-        second.ttft_ms = Some(1_000);
-        second.tokens.output_tokens = 20;
+        second.latency_ms = 5_000;
+        second.ttft_ms = Some(4_000);
+        second.tokens.output_tokens = 100;
 
-        let mut missing_ttft = sample_record("tps-3", "2026-07-17T20:32:00+08:00", "gpt-a");
-        missing_ttft.latency_ms = 500;
+        let mut exact_window = sample_record("tps-3", "2026-07-17T20:32:00+08:00", "gpt-a");
+        exact_window.latency_ms = 2_000;
+        exact_window.ttft_ms = Some(1_900);
+        exact_window.tokens.output_tokens = 500;
+
+        let mut short_output = sample_record("tps-4", "2026-07-17T20:33:00+08:00", "gpt-a");
+        short_output.latency_ms = 2_000;
+        short_output.ttft_ms = Some(1_000);
+        short_output.tokens.output_tokens = 99;
+
+        let mut missing_ttft = sample_record("tps-5", "2026-07-17T20:34:00+08:00", "gpt-a");
+        missing_ttft.latency_ms = 3_000;
         missing_ttft.ttft_ms = None;
-        missing_ttft.tokens.output_tokens = 100;
+        missing_ttft.tokens.output_tokens = 500;
 
-        let mut equal_latency = sample_record("tps-4", "2026-07-17T20:33:00+08:00", "gpt-a");
-        equal_latency.latency_ms = 500;
-        equal_latency.ttft_ms = Some(500);
-        equal_latency.tokens.output_tokens = 100;
+        let mut short_window = sample_record("tps-6", "2026-07-17T20:35:00+08:00", "gpt-a");
+        short_window.latency_ms = 1_050;
+        short_window.ttft_ms = Some(1_000);
+        short_window.tokens.output_tokens = 200;
 
-        let mut failed = sample_record("tps-5", "2026-07-17T20:34:00+08:00", "gpt-a");
+        let mut failed = sample_record("tps-7", "2026-07-17T20:36:00+08:00", "gpt-a");
         failed.failed = true;
-        failed.tokens.output_tokens = 100;
+        failed.latency_ms = 3_000;
+        failed.ttft_ms = Some(1_000);
+        failed.tokens.output_tokens = 500;
 
-        let mut canceled = sample_record("tps-6", "2026-07-17T20:35:00+08:00", "gpt-a");
+        let mut canceled = sample_record("tps-8", "2026-07-17T20:37:00+08:00", "gpt-a");
         canceled.canceled = true;
-        canceled.tokens.output_tokens = 100;
+        canceled.latency_ms = 3_000;
+        canceled.ttft_ms = Some(1_000);
+        canceled.tokens.output_tokens = 500;
 
-        let mut non_generation = sample_record("tps-7", "2026-07-17T20:36:00+08:00", "gpt-a");
+        let mut non_generation = sample_record("tps-9", "2026-07-17T20:38:00+08:00", "gpt-a");
         non_generation.generate = false;
-        non_generation.tokens.output_tokens = 100;
-
-        let mut zero_latency = sample_record("tps-8", "2026-07-17T20:37:00+08:00", "gpt-a");
-        zero_latency.latency_ms = 0;
-        zero_latency.tokens.output_tokens = 100;
-
-        let mut no_output = sample_record("tps-9", "2026-07-17T20:38:00+08:00", "gpt-a");
-        no_output.tokens.output_tokens = 0;
+        non_generation.latency_ms = 3_000;
+        non_generation.ttft_ms = Some(1_000);
+        non_generation.tokens.output_tokens = 500;
 
         insert_usage_records(
             &mut connection,
             &[
                 first,
                 second,
+                exact_window,
+                short_output,
                 missing_ttft,
-                equal_latency,
+                short_window,
                 failed,
                 canceled,
                 non_generation,
-                zero_latency,
-                no_output,
             ],
         )
         .unwrap();
 
         let overview = load_usage_overview(&connection, &UsageQuery::default()).unwrap();
 
-        assert_eq!(overview.tps, (80.0 + 10.0 + 200.0 + 200.0) / 4.0);
-        assert_eq!(overview.tps_sample_count, 4);
+        // Weighted by tokens over the generation window (latency - ttft).
+        // Counted: tps-1 (500 / 2000 ms), tps-2 (100 / 1000 ms), tps-3 (500 / 100 ms).
+        // Excluded: tps-4 (<100 output), tps-5 (no ttft), tps-6 (window <100 ms),
+        // tps-7 (failed), tps-8 (canceled), tps-9 (not a generation request).
+        let expected = (500.0 + 100.0 + 500.0) * 1000.0 / (2_000.0 + 1_000.0 + 100.0);
+        assert!((overview.tps - expected).abs() < 1e-9);
+        assert_eq!(overview.tps_sample_count, 3);
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn overview_tps_excludes_failed_records_with_output() {
+        let root = test_root("tps-failed-excluded");
+        let mut connection = open_test_database(&root);
+
+        let mut failed = sample_record("tps-failed", "2026-07-17T20:30:00+08:00", "gpt-a");
+        failed.failed = true;
+        failed.latency_ms = 500;
+        failed.tokens.output_tokens = 100;
+
+        insert_usage_records(&mut connection, &[failed]).unwrap();
+
+        let overview = load_usage_overview(&connection, &UsageQuery::default()).unwrap();
+
+        assert_eq!(overview.tps, 0.0);
+        assert_eq!(overview.tps_sample_count, 0);
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn overview_tps_excludes_zero_output_or_zero_latency() {
+        let root = test_root("tps-excluded");
+        let mut connection = open_test_database(&root);
+
+        let mut no_output = sample_record("tps-no-output", "2026-07-17T20:30:00+08:00", "gpt-a");
+        no_output.latency_ms = 500;
+        no_output.failed = false;
+        no_output.tokens.output_tokens = 0;
+
+        let mut zero_latency =
+            sample_record("tps-zero-latency", "2026-07-17T20:31:00+08:00", "gpt-a");
+        zero_latency.latency_ms = 0;
+        zero_latency.failed = false;
+        zero_latency.tokens.output_tokens = 100;
+
+        insert_usage_records(&mut connection, &[no_output, zero_latency]).unwrap();
+
+        let overview = load_usage_overview(&connection, &UsageQuery::default()).unwrap();
+
+        assert_eq!(overview.tps, 0.0);
+        assert_eq!(overview.tps_sample_count, 0);
         drop(connection);
         fs::remove_dir_all(root).unwrap();
     }

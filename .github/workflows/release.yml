@@ -15,7 +15,7 @@ on:
         required: true
         type: string
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -46,6 +46,7 @@ permissions:
 jobs:
   version:
     name: Resolve app version
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login == 'Roomen'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -214,7 +215,7 @@ jobs:
           node scripts/build-model-access.mjs
           cargo test --manifest-path plugins/model-access/Cargo.toml --locked --target-dir src-tauri/target
           bun test tests/versionManagement.test.ts tests/portableUpdateManifest.test.ts tests/clientModelAccess.test.ts tests/browserMockRuntime.test.ts tests/authFileSettings.test.ts tests/providerTemplate.test.ts
-          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: tests::core_config:: client_model_access:: cooldown_policy::
+          cargo test --manifest-path src-tauri/Cargo.toml --locked -- management_api:: tests::app_update:: tests::core_config:: client_model_access:: cooldown_policy:: core_runtime::core_startup_tests:: usage::tests::
           bun tauri build --no-bundle
         shell: bash
       - name: Prepare portable directory
